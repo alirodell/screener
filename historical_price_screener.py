@@ -276,20 +276,6 @@ class Security:
     def get_adj_close(self):
         return self._current_day_adj_close
 
-    # I'm not sure I want to set "set" methods here, I don't see a case when I would use them.
-    # These are just a mistake waiting to happen.
-    #def set_10_day_sma(self):
-    #    return self._10_day_sma
-    
-    #def set_20_day_ema(self):
-    #    return self._20_day_ema
-    
-    #def set_30_day_ema(self):
-    #    return self._30_day_ema
-    
-    #def set_raw_data(self):
-    #    return self._data
-
 
         
 
