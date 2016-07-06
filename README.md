@@ -1,0 +1,1 @@
+Python script used for stock screening.
