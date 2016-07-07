@@ -41,7 +41,7 @@ trend_history_table = dynamodb.create_table(
             'KeyType': 'HASH'  #Partition key
         },
         {
-            'AttributeName': 'instance_date',
+            'AttributeName': 'occurence_date',
             'KeyType': 'RANGE'  #Partition key
         },        
     ],
@@ -51,7 +51,7 @@ trend_history_table = dynamodb.create_table(
             'AttributeType': 'S'
         },   
         {
-            'AttributeName': 'instance_date',
+            'AttributeName': 'occurence_date',
             'AttributeType': 'S'
         },
     ],

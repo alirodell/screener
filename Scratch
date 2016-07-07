@@ -104,3 +104,17 @@ trend_history_table = dynamodb.create_table(
     }
 )
 
+
+
+
+
+Not there:
+{'ResponseMetadata': {'HTTPHeaders': {'x-amzn-requestid': '75028db6-5e10-4117-b224-2b9974eae611', 'server': 'Jetty(8.1.12.v20130726)', 'content-type': 'application/x-amz-json-1.0', 'x-amz-crc32': '2745614147', 'content-length': '2'}, 'RequestId': '75028db6-5e10-4117-b224-2b9974eae611', 'HTTPStatusCode': 200}}
+
+There:
+{'ResponseMetadata': {'HTTPHeaders': {'x-amzn-requestid': '09b4f39e-fbb5-4193-8fa0-21e89ad13b96', 'server': 'Jetty(8.1.12.v20130726)', 'content-type': 'application/x-amz-json-1.0', 'x-amz-crc32': '3098476721', 'content-length': '128'}, 'RequestId': '09b4f39e-fbb5-4193-8fa0-21e89ad13b96', 'HTTPStatusCode': 200}, 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
+
+
+
+
+
