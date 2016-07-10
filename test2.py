@@ -1,13 +1,10 @@
 
-import logging
+import datetime
 
 
 def main():
     
     
-    logging.basicConfig(filename='example.log',level=logging.WARN)
-    logging.debug('This message should go to the log file')
-    logging.info('So should this')
-    logging.warning('And this, too')
+    print(type(datetime.datetime.today()))
 
 if __name__ == "__main__": main()

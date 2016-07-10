@@ -263,7 +263,8 @@ class Security:
 def main():
     
     # Set the logging level.
-    logging.basicConfig(filename='example.log',level=logging.INFO)
+    
+    
     
     # This list of stocks we will iterate through to select historical data from yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
@@ -279,7 +280,11 @@ def main():
     start_date = end_date - datetime.timedelta(days=300)
     today_date_string = str(end_date) 
     
-    logging.info("Starting processing for the {} trading day.".format(end_date))
+    log_file_name = ".".join(("_".join(("screener", today_date_string)),"log"))
+    
+    logging.basicConfig(filename=log_file_name,level=logging.INFO)
+    
+    logging.info("Starting processing for the {} trading day at {}.".format(end_date, datetime.datetime.today()))
     
     historical_data_url = 'https://query.yahooapis.com/v1/public/yql?q=select%20*%20from%20yahoo.finance.historicaldata%20where%20symbol%20%3D%20%22###%22%20and%20startDate%20%3D%20%22SSSS%22%20and%20endDate%20%3D%20%22EEEE%22&format=json&diagnostics=true&env=store%3A%2F%2Fdatatables.org%2Falltableswithkeys&callback='    
     
@@ -365,7 +370,7 @@ def main():
     
     for k in the_stocks:
         
-        logging.info("-----------------Starting work on stock symbol {}.------------------------".format(k))
+        logging.info("-----------------Starting work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
         # Generate the YQL string.
         specific_query = historical_data_url.replace("###",k)
         
@@ -398,7 +403,7 @@ def main():
                 volume = my_stock.get_volume()
                 adj_close_price = my_stock.get_adj_close()               
                 
-                if volume > 250000 and adj_close_price < 20.01:
+                if volume > 250000 and adj_close_price <= 20.0:
                 
                     ten_day_sma = my_stock.get_10_day_sma()
                     twenty_day_ema = my_stock.get_20_day_ema()
@@ -414,10 +419,10 @@ def main():
                     # Open a connection to our Dynamodb table for current trends.
                     
                     # For local development.
-                    # dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
+                    dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
                     
                     # For running against our AWS instance.
-                    dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
+                    # dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
                     
                     current_trend_table = dynamodb.Table('Current_Trend')             
                     
@@ -485,7 +490,7 @@ def main():
             else: logging.info("This stock has not been traded long enough to do analysis on it.")
         except TypeError: pass    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
         except IndexError: logging.info("Somehow we got a stock through that didn't have enough entries.")
-        logging.info("-----------------End work on stock symbol {}.------------------------".format(k))
+        logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
     logging.info(len(notification_dict))
     logging.info("All Done.")
 
