@@ -274,7 +274,7 @@ def main():
     # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
     
     # For the purposes of development I am having the end_date be yesterday so that I can run this during the day.  Usually this will run at night so we can get the close prices.
-    end_date = datetime.date.today() - datetime.timedelta(days=1)
+    end_date = datetime.date.today()
     # Start date is represented by @@@@ in the url.
     # Go back 100 calendar days which should give us around 70 trading days.
     start_date = end_date - datetime.timedelta(days=300)
