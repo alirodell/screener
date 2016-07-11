@@ -1,11 +1,10 @@
 from __future__ import print_function # Python 2/3 compatibility
 import boto3
 
-print("Attempting to connect to the local db.")
-dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
+#dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
 
-#print("Attempting to connect to the db in AWS.")
-#dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
+print("Attempting to connect to the db in AWS.")
+dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
                     
                     
 #current_trend_table = dynamodb.Table('Current_Trend')

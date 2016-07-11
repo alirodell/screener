@@ -268,7 +268,7 @@ def main():
     
     # This list of stocks we will iterate through to select historical data from yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
-    the_stocks = ("CLSD", "AMD", "MET", "P", "T", "GPRO")
+    #the_stocks = ("CLSD", "AMD", "MET", "GOOG", "T", "GPRO")
  
     # this is the base URL that will be used to query Yahoo finance for historical pricing data.
     # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
@@ -352,16 +352,16 @@ def main():
     #print(historical_data_url)
     #historical_data_url.replace("^^^^", str(end_date))
     
-    #company_list = open('companylist.csv')
+    company_list = open('companylist.csv')
 
-    #the_stocks = []
-    #for line in company_list:
-    #    
-    #    # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
-    #    if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
-    #    else:
-    #        stock_symbol_list = line.split(',')
-    #        the_stocks.append(stock_symbol_list[0].strip('"'))
+    the_stocks = []
+    for line in company_list:
+        
+        # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
+        if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
+        else:
+            stock_symbol_list = line.split(',')
+            the_stocks.append(stock_symbol_list[0].strip('"'))
     
     
     #the_stocks.reverse()
@@ -390,7 +390,7 @@ def main():
             if hist_resp.status_code != 200:
                 # This means something went wrong.
                 # I should raise a custom exception for this.
-                logging.warn("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
+                logging.info("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
             
             # This is a bit arbitrary but we want at least 50 days of trading in a stock to be available before we start tracking trends.
             if len(quote_list) >= 50:       
@@ -440,7 +440,7 @@ def main():
                             # Save the trend to the db.
                             logging.info("Saving trend to the db")
                             if save_up_trend(k, True) == 1: tally_notification(k, 'up')
-                            else: logging.warn("We were unable to save the up-trend for {}".format(k))
+                            else: logging.info("We were unable to save the up-trend for {}".format(k))
                             
                         elif len(response) > 1:
                             # Check if the stock is already on an uptrend, if it is, then just move on.  
@@ -451,7 +451,7 @@ def main():
                             elif response['Item']['up_trend'] == False:
                                 # Updating trend in the database.
                                 if save_up_trend(k, True) == 1: tally_notification(k, 'up') 
-                                else: logging.warn("We were unable to save the new up-trend for {}".format(k))
+                                else: logging.info("We were unable to save the new up-trend for {}".format(k))
                          
                        
                         # Once we have a confirmed up-trend and have dealt with logging it we can sort it based on volume and price.
@@ -467,7 +467,7 @@ def main():
                             # Save the trend to the db as this is a either a new signal or a new stock.
                             logging.info("Saving new trend to the db")
                             if save_down_trend(k, True) == 1: tally_notification(k, 'down') 
-                            else: logging.warn("We were unable to save the down-trend for {}".format(k))
+                            else: logging.info("We were unable to save the down-trend for {}".format(k))
                             
                         elif len(response) > 1:
                             # Check if the stock is already on a downtrend, if it is, then just move on.  
@@ -477,7 +477,7 @@ def main():
                             elif response['Item']['down_trend'] == False:
                                 # Updating trend in the database.
                                 if save_down_trend(k, False) == 1: tally_notification(k, 'down')
-                                else: logging.warn("We were unable to save the new down-trend for {}".format(k))        
+                                else: logging.info("We were unable to save the new down-trend for {}".format(k))        
                     else:
                         logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
                     
@@ -492,13 +492,7 @@ def main():
         except IndexError: logging.info("Somehow we got a stock through that didn't have enough entries.")
         logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
     logging.info(len(notification_dict))
-    
-    if len(notification_dict) > 0:
-        for j in notification_dict.keys():
-            logging.info("You have new {} trend for {}".format(notification_dict[j], j))
-    else: logging.info("No new trend notifications today.")
-    
-    logging.info("All Done at {}.".format(datetime.datetime.today()))
+    logging.info("All Done.")
 
     
     
