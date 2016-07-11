@@ -1,0 +1,4 @@
+*.log
+*.bscp
+*.project
+*.pydevproject
