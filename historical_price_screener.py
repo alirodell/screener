@@ -268,7 +268,7 @@ def main():
     
     # This list of stocks we will iterate through to select historical data from yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
-    the_stocks = ("CLSD", "AMD", "MET", "P", "T", "GPRO")
+    #the_stocks = ("AMD", "MET", "P", "T", "GPRO")
  
     # this is the base URL that will be used to query Yahoo finance for historical pricing data.
     # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
@@ -349,23 +349,17 @@ def main():
         return return_code 
     
         
-    #print(historical_data_url)
-    #historical_data_url.replace("^^^^", str(end_date))
     
-    #company_list = open('companylist.csv')
+    company_list = open('companylist.csv')
 
-    #the_stocks = []
-    #for line in company_list:
-    #    
-    #    # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
-    #    if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
-    #    else:
-    #        stock_symbol_list = line.split(',')
-    #        the_stocks.append(stock_symbol_list[0].strip('"'))
-    
-    
-    #the_stocks.reverse()
-    
+    the_stocks = []
+    for line in company_list:
+        
+        # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
+        if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
+        else:
+            stock_symbol_list = line.split(',')
+            the_stocks.append(stock_symbol_list[0].strip('"'))
     
     
     for k in the_stocks:
@@ -381,17 +375,18 @@ def main():
         try:        
             hist_resp = requests.get(specific_query)
             
+            if hist_resp.status_code != 200:
+                # This means something went wrong.
+                # I should raise a custom exception for this.
+                logging.warn("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
+                        
             bulk_response = hist_resp.json()['query']
             
             results_dict = bulk_response['results']
             
             quote_list = results_dict['quote']
             
-            if hist_resp.status_code != 200:
-                # This means something went wrong.
-                # I should raise a custom exception for this.
-                logging.warn("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
-            
+
             # This is a bit arbitrary but we want at least 50 days of trading in a stock to be available before we start tracking trends.
             if len(quote_list) >= 50:       
             
@@ -419,10 +414,10 @@ def main():
                     # Open a connection to our Dynamodb table for current trends.
                     
                     # For local development.
-                    dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
+                    #dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
                     
                     # For running against our AWS instance.
-                    # dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
+                    dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
                     
                     current_trend_table = dynamodb.Table('Current_Trend')             
                     
@@ -452,12 +447,6 @@ def main():
                                 # Updating trend in the database.
                                 if save_up_trend(k, True) == 1: tally_notification(k, 'up') 
                                 else: logging.warn("We were unable to save the new up-trend for {}".format(k))
-                         
-                       
-                        # Once we have a confirmed up-trend and have dealt with logging it we can sort it based on volume and price.
-                        
-                    
-                    
                     elif down_signal_generated: 
                         logging.info("We have a down-trend signal from {}".format(k))
                         # When a down-trend occurs we check if the stock has a stored down-trend. 
