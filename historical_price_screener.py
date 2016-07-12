@@ -77,29 +77,6 @@ class TradingDay:
     def get_date(self):
         return self._date
     
-    def set_symbol(self, s):
-        self._symbol = s
-        
-    def set_open(self, s):
-        self._open = s
-        
-    def set_close(self, s):
-        self._close = s
-        
-    def set_volume(self, s):
-        self._volume = s
-        
-    def set_adj_close(self, s):
-        self._close = s
-        
-    def set_low(self, s):
-        self._low = s
-        
-    def set_high(self, s):
-        self._high = s
-        
-    def set_date(self, d):
-        self._date = d
         
 
 
@@ -112,7 +89,7 @@ class Security:
         self._20_day_ema = 0.0
         self._30_day_ema = 0.0
         self._current_day_volume = 0
-        self._current_day_adj_close = 0.0
+        self._current_day_close = 0.0
         
         
         # make sure that the list was passed in and that it has 30 days of security prices.
@@ -121,7 +98,7 @@ class Security:
                 
         self._trading_day_list = []
         
-        # Each iteration of i will be a dictionary object holding a days trading data which will be passed in with the init function of the TradingDay object..
+        # Each iteration of i will be a dictionary object holding a days trading data which will be passed in with the init function of the TradingDay object.
         if self._data != None:
             for i in self._data:
                 #print(i)
@@ -144,7 +121,7 @@ class Security:
         
         # Assign the other values - these are all for the current trading day only.
         # We are running this script after the market closes. 
-        self._current_day_adj_close = self._trading_day_list[num_trd - 1].get_adj_close()
+        self._current_day_close = self._trading_day_list[num_trd - 1].get_close()
         self._current_day_volume = self._trading_day_list[num_trd - 1].get_volume()
             
         #print("This is the SMA10 value {}".format(self.get_10_day_sma()))    
@@ -189,10 +166,10 @@ class Security:
                 #print("The previous day's ema is {}".format(previous_ema))
                 #print("The date I'm adding to the dict is {} and the {} day ema for that date is {}".format(str(self._trading_day_list[k].get_date()), period, calc_ema(self._trading_day_list[k].get_adj_close(),previous_ema)))
                 #print("--------------------------------")
-                ema_list[str(self._trading_day_list[k].get_date())] = calc_ema(self._trading_day_list[k].get_adj_close(),previous_ema)
+                ema_list[str(self._trading_day_list[k].get_date())] = calc_ema(self._trading_day_list[k].get_close(),previous_ema)
                 
                 # Store the last date to return the final EMA.
-                if k == num_trd_days-1: ema = calc_ema(self._trading_day_list[k].get_adj_close(),previous_ema)
+                if k == num_trd_days-1: ema = calc_ema(self._trading_day_list[k].get_close(),previous_ema)
                 
                 
             
@@ -211,10 +188,7 @@ class Security:
         if period > 0 and num_trd_days > 0:
             
             for i in range(period):
-                
-                #print("i is {} and the adjusted closing price on {} is {}".format(i, self._trading_day_list[i].get_date(), self._trading_day_list[i].get_adj_close()))
-                
-                sma_10_total += self._trading_day_list[i].get_adj_close()
+                sma_10_total += self._trading_day_list[i].get_close()
                 #print("initial sma total is {}".format(sma_10_total))
                 sma = sma_10_total / period
         return sma    
@@ -234,7 +208,7 @@ class Security:
                 #print("i is {} and the adjusted closing price on {} is {}".format(i, self._trading_day_list[num_trd_days-(i+1)].get_date(), self._trading_day_list[num_trd_days-(i+1)].get_adj_close()))
                 
                 # Have to add 1 to i since ranges in Python are non-inclusive.
-                sma_10_total += self._trading_day_list[num_trd_days-(i+1)].get_adj_close()
+                sma_10_total += self._trading_day_list[num_trd_days-(i+1)].get_close()
                 #print("sma total is {}".format(sma_10_total))
                 sma = sma_10_total / period
         return sma
@@ -254,8 +228,8 @@ class Security:
     def get_volume(self):
         return self._current_day_volume
     
-    def get_adj_close(self):
-        return self._current_day_adj_close
+    def get_close(self):
+        return self._current_day_close
 
 
         
@@ -266,9 +240,7 @@ def main():
     
     
     
-    # This list of stocks we will iterate through to select historical data from yahoo finance.
-    # This list -MUST- have at least two stocks in it in order for this script to work.
-    #the_stocks = ("AMD", "MET", "P", "T", "GPRO")
+
  
     # this is the base URL that will be used to query Yahoo finance for historical pricing data.
     # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
@@ -350,6 +322,11 @@ def main():
     
         
     
+    # This list of stocks we will iterate through to select historical data from yahoo finance.
+    # This list -MUST- have at least two stocks in it in order for this script to work.
+    #the_stocks = ("AMD", "MET", "P", "T", "GPRO")
+    
+    
     company_list = open('companylist.csv')
 
     the_stocks = []
@@ -360,7 +337,7 @@ def main():
         else:
             stock_symbol_list = line.split(',')
             the_stocks.append(stock_symbol_list[0].strip('"'))
-    
+     
     
     for k in the_stocks:
         
@@ -396,9 +373,9 @@ def main():
                 
                 # First things first, we check that the stock has traded at least 250k shares and the price is below $20.
                 volume = my_stock.get_volume()
-                adj_close_price = my_stock.get_adj_close()               
+                close_price = my_stock.get_close()               
                 
-                if volume > 250000 and adj_close_price <= 20.0:
+                if volume > 250000 and close_price <= 20.0:
                 
                     ten_day_sma = my_stock.get_10_day_sma()
                     twenty_day_ema = my_stock.get_20_day_ema()
