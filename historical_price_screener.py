@@ -60,7 +60,7 @@ class TradingDay:
                 self._date = datetime.date(int(date_parts[0]),int(date_parts[1]),int(date_parts[2]))
             else: raise ArgumentError
         except KeyError: logging.info("Threw a key error while populating this trading day.")
-        except ArgumentError: logging.info("There is an issue with the arguments passed into the TradingDate class")
+        except ArgumentError: logging.info("There is an issue with the arguments passed into the TradingDay class")
     
     # Set this so that you can just call .sort() on a list of these objects and sort them by date.
     def __lt__(self,other):           
@@ -259,7 +259,7 @@ def main():
     # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
     
     # For the purposes of development I am having the end_date be yesterday so that I can run this during the day.  Usually this will run at night so we can get the close prices.
-    end_date = datetime.date.today() - datetime.timedelta(hours=24)
+    end_date = datetime.date.today() - datetime.timedelta(hours=48)
     # Start date is represented by @@@@ in the url.
     # Go back 100 calendar days which should give us around 70 trading days.
     start_date = end_date - datetime.timedelta(days=300)
@@ -337,19 +337,18 @@ def main():
     
     # This list of stocks we will iterate through to select historical data from yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
-    the_stocks = ("AMD", "HSTM")
+    #the_stocks = ("AMD", "HSTM")
     
-    
-    #company_list = open('companylist.csv')
+    company_list = open('companylist.csv')
 
-    #the_stocks = []
-    #for line in company_list:
-    #    
-    #    # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
-    #    if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
-    #    else:
-    #        stock_symbol_list = line.split(',')
-    #        the_stocks.append(stock_symbol_list[0].strip('"')) 
+    the_stocks = []
+    for line in company_list:
+        
+        # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
+        if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
+        else:
+            stock_symbol_list = line.split(',')
+            the_stocks.append(stock_symbol_list[0].strip('"')) 
     
     for k in the_stocks:
         
@@ -383,88 +382,80 @@ def main():
                 up_signal_generated = False
                 down_signal_generated = False
                 
-                # First things first, we check that the stock has traded at least 250k shares and the price is below $20.
-                volume = my_stock.get_volume()
-                close_price = my_stock.get_close()               
+                ten_day_sma = my_stock.get_10_day_sma()
+                twenty_day_ema = my_stock.get_20_day_ema()
+                thirty_day_ema = my_stock.get_30_day_ema()
+
                 
-                if volume > 250000 and close_price <= 20.0:
+                # Check for up-trend
+                if ten_day_sma > twenty_day_ema or ten_day_sma > thirty_day_ema: up_signal_generated = True
                 
-                    ten_day_sma = my_stock.get_10_day_sma()
-                    twenty_day_ema = my_stock.get_20_day_ema()
-                    thirty_day_ema = my_stock.get_30_day_ema()
-    
+                # Check for down-trend
+                if ten_day_sma < twenty_day_ema or ten_day_sma < thirty_day_ema: down_signal_generated = True
                     
-                    # Check for up-trend
-                    if ten_day_sma > twenty_day_ema or ten_day_sma > thirty_day_ema: up_signal_generated = True
+                # Open a connection to our Dynamodb table for current trends.
+                
+                # For local development.
+                #dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
+                
+                # For running against our AWS instance.
+                dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
+                
+                current_trend_table = dynamodb.Table('Current_Trend')             
+                
+                # Open a connection to the trend_history_table.
+                trend_history_table = dynamodb.Table('Trend_History') 
+                
+                if up_signal_generated: 
+                    logging.info("We have a up-trend signal from {}".format(k))
+                    # Check if the stock has a stored up-trend.  If so, then ignore. 
+                    # The response comes in the form of a dictionary object.  If it has length of 1 then the symbol was not previously saved.
+                    # If it has more than one, then you are getting a response from the database and there is a current trend saved.
                     
-                    # Check for down-trend
-                    if ten_day_sma < twenty_day_ema or ten_day_sma < thirty_day_ema: down_signal_generated = True
+                    response = current_trend_table.get_item(Key={'stock_symbol': k})
+                    if len(response) == 1:
+                        # Save the trend to the db.
+                        logging.info("Saving trend to the db")
+                        if save_up_trend(k, True) == 1: tally_notification(k, 'up')
+                        else: logging.warn("We were unable to save the up-trend for {}".format(k))
                         
-                    # Open a connection to our Dynamodb table for current trends.
-                    
-                    # For local development.
-                    dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
-                    
-                    # For running against our AWS instance.
-                    #dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
-                    
-                    current_trend_table = dynamodb.Table('Current_Trend')             
-                    
-                    # Open a connection to the trend_history_table.
-                    trend_history_table = dynamodb.Table('Trend_History') 
-                    
-                    if up_signal_generated: 
-                        logging.info("We have a up-trend signal from {}".format(k))
-                        # Check if the stock has a stored up-trend.  If so, then ignore. 
-                        # The response comes in the form of a dictionary object.  If it has length of 1 then the symbol was not previously saved.
-                        # If it has more than one, then you are getting a response from the database and there is a current trend saved.
+                    elif len(response) > 1:
+                        # Check if the stock is already on an uptrend, if it is, then just move on.  
+                        # If it isn't, then update the entry to indicate up-trend = True, and down-trend = False.
+                        # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
+                        #trend_info = 
+                        if response['Item']['up_trend'] == True: logging.info("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
+                        elif response['Item']['up_trend'] == False:
+                            # Updating trend in the database.
+                            if save_up_trend(k, True) == 1: tally_notification(k, 'up') 
+                            else: logging.warn("We were unable to save the new up-trend for {}".format(k))
+                elif down_signal_generated: 
+                    logging.info("We have a down-trend signal from {}".format(k))
+                    # When a down-trend occurs we check if the stock has a stored down-trend. 
+                    # If so, we ignore, if not, then update the down-trend bit to true, update the up-trend bit to false, insert the date, then notify.
+                    response = current_trend_table.get_item(Key={'stock_symbol': k})
+                    if len(response) == 1:
+                        # Save the trend to the db as this is a either a new signal or a new stock.
+                        logging.info("Saving new trend to the db")
+                        if save_down_trend(k, True) == 1: tally_notification(k, 'down') 
+                        else: logging.warn("We were unable to save the down-trend for {}".format(k))
                         
-                        response = current_trend_table.get_item(Key={'stock_symbol': k})
-                        if len(response) == 1:
-                            # Save the trend to the db.
-                            logging.info("Saving trend to the db")
-                            if save_up_trend(k, True) == 1: tally_notification(k, 'up')
-                            else: logging.warn("We were unable to save the up-trend for {}".format(k))
-                            
-                        elif len(response) > 1:
-                            # Check if the stock is already on an uptrend, if it is, then just move on.  
-                            # If it isn't, then update the entry to indicate up-trend = True, and down-trend = False.
-                            # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
-                            #trend_info = 
-                            if response['Item']['up_trend'] == True: logging.info("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
-                            elif response['Item']['up_trend'] == False:
-                                # Updating trend in the database.
-                                if save_up_trend(k, True) == 1: tally_notification(k, 'up') 
-                                else: logging.warn("We were unable to save the new up-trend for {}".format(k))
-                    elif down_signal_generated: 
-                        logging.info("We have a down-trend signal from {}".format(k))
-                        # When a down-trend occurs we check if the stock has a stored down-trend. 
-                        # If so, we ignore, if not, then update the down-trend bit to true, update the up-trend bit to false, insert the date, then notify.
-                        response = current_trend_table.get_item(Key={'stock_symbol': k})
-                        if len(response) == 1:
-                            # Save the trend to the db as this is a either a new signal or a new stock.
-                            logging.info("Saving new trend to the db")
-                            if save_down_trend(k, True) == 1: tally_notification(k, 'down') 
-                            else: logging.warn("We were unable to save the down-trend for {}".format(k))
-                            
-                        elif len(response) > 1:
-                            # Check if the stock is already on a downtrend, if it is, then just move on.  
-                            # If it isn't, then update the entry to indicate down_trend = True, and up-trend = False.
-                            # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
-                            if response['Item']['down_trend'] == True: logging.info("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
-                            elif response['Item']['down_trend'] == False:
-                                # Updating trend in the database.
-                                if save_down_trend(k, False) == 1: tally_notification(k, 'down')
-                                else: logging.warn("We were unable to save the new down-trend for {}".format(k))        
-                    else:
-                        logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
-                    
-                    
-                    logging.info("Current 10 day SMA is {}, current 20 day EMA is {}, and current 30 day EMA is {}".format(my_stock.get_10_day_sma(), my_stock.get_20_day_ema(),my_stock.get_30_day_ema()))
-                    
-                else: logging.info("This stock is either too expensive or not traded actively enough to work with.")    
-                    
+                    elif len(response) > 1:
+                        # Check if the stock is already on a downtrend, if it is, then just move on.  
+                        # If it isn't, then update the entry to indicate down_trend = True, and up-trend = False.
+                        # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
+                        if response['Item']['down_trend'] == True: logging.info("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
+                        elif response['Item']['down_trend'] == False:
+                            # Updating trend in the database.
+                            if save_down_trend(k, False) == 1: tally_notification(k, 'down')
+                            else: logging.warn("We were unable to save the new down-trend for {}".format(k))        
+                else:
+                    logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
                 
+                
+                logging.info("Current 10 day SMA is {}, current 20 day EMA is {}, and current 30 day EMA is {}".format(my_stock.get_10_day_sma(), my_stock.get_20_day_ema(),my_stock.get_30_day_ema()))
+                
+               
             else: logging.info("This stock has not been traded long enough to do analysis on it.")
         except TypeError: logging.info("Came back with a TypeError from Yahoo Finance.")    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
         except IndexError: logging.info("Somehow we got a stock through that didn't have enough entries.")
