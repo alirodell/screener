@@ -4,6 +4,7 @@ import requests
 import datetime
 import boto3
 import logging
+from _ctypes import ArgumentError
 
 
 
@@ -34,20 +35,32 @@ import logging
      
 
 class TradingDay:
-    def __init__(self, sec_trading_data = None):
+    def __init__(self, sec_trading_data = None):    
         self._data = sec_trading_data      
+        self._symbol = ''
+        self._open = 0.0
+        self._close = 0.0
+        self._volume = 0
+        self._adj_close = 0.0
+        self._low = 0.0
+        self._high = 0.0
+        self._date = None
  
-        # Assign the day's data to object properties.
-        if self._data != None:
-            self._symbol = self._data['Symbol']
-            self._open = float(self._data['Open'])
-            self._close = float(self._data['Close'])
-            self._volume = int(self._data['Volume'])
-            self._adj_close = float(self._data['Adj_Close'])
-            self._low = float(self._data['Low'])
-            self._high = float(self._data['High'])
-            date_parts = self._data['Date'].split('-')
-            self._date = datetime.date(int(date_parts[0]),int(date_parts[1]),int(date_parts[2]))
+        try:
+            # Assign the day's data to object properties.
+            if self._data != None:
+                self._symbol = self._data['Symbol']
+                self._open = float(self._data['Open'])
+                self._close = float(self._data['Close'])
+                self._volume = int(self._data['Volume'])
+                self._adj_close = float(self._data['Adj_Close'])
+                self._low = float(self._data['Low'])
+                self._high = float(self._data['High'])
+                date_parts = self._data['Date'].split('-')
+                self._date = datetime.date(int(date_parts[0]),int(date_parts[1]),int(date_parts[2]))
+            else: raise ArgumentError
+        except KeyError: logging.info("Threw a key error while populating this trading day.")
+        except ArgumentError: logging.info("There is an issue with the arguments passed into the TradingDate class")
     
     # Set this so that you can just call .sort() on a list of these objects and sort them by date.
     def __lt__(self,other):           
@@ -246,7 +259,7 @@ def main():
     # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
     
     # For the purposes of development I am having the end_date be yesterday so that I can run this during the day.  Usually this will run at night so we can get the close prices.
-    end_date = datetime.date.today()
+    end_date = datetime.date.today() - datetime.timedelta(hours=24)
     # Start date is represented by @@@@ in the url.
     # Go back 100 calendar days which should give us around 70 trading days.
     start_date = end_date - datetime.timedelta(days=300)
@@ -324,20 +337,19 @@ def main():
     
     # This list of stocks we will iterate through to select historical data from yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
-    #the_stocks = ("AMD", "MET", "P", "T", "GPRO")
+    the_stocks = ("AMD", "HSTM")
     
     
-    company_list = open('companylist.csv')
+    #company_list = open('companylist.csv')
 
-    the_stocks = []
-    for line in company_list:
-        
-        # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
-        if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
-        else:
-            stock_symbol_list = line.split(',')
-            the_stocks.append(stock_symbol_list[0].strip('"'))
-     
+    #the_stocks = []
+    #for line in company_list:
+    #    
+    #    # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
+    #    if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
+    #    else:
+    #        stock_symbol_list = line.split(',')
+    #        the_stocks.append(stock_symbol_list[0].strip('"')) 
     
     for k in the_stocks:
         
@@ -391,10 +403,10 @@ def main():
                     # Open a connection to our Dynamodb table for current trends.
                     
                     # For local development.
-                    #dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
+                    dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
                     
                     # For running against our AWS instance.
-                    dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
+                    #dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
                     
                     current_trend_table = dynamodb.Table('Current_Trend')             
                     
@@ -454,7 +466,7 @@ def main():
                     
                 
             else: logging.info("This stock has not been traded long enough to do analysis on it.")
-        except TypeError: pass    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
+        except TypeError: logging.info("Came back with a TypeError from Yahoo Finance.")    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
         except IndexError: logging.info("Somehow we got a stock through that didn't have enough entries.")
         logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
     logging.info(len(notification_dict))
