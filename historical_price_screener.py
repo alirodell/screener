@@ -4,6 +4,7 @@ import requests
 import datetime
 import boto3
 import logging
+import os
 from _ctypes import ArgumentError
 
 
@@ -103,6 +104,7 @@ class Security:
         self._30_day_ema = 0.0
         self._current_day_volume = 0
         self._current_day_close = 0.0
+        self._symbol = ''
         
         
         # make sure that the list was passed in and that it has 30 days of security prices.
@@ -136,6 +138,7 @@ class Security:
         # We are running this script after the market closes. 
         self._current_day_close = self._trading_day_list[num_trd - 1].get_close()
         self._current_day_volume = self._trading_day_list[num_trd - 1].get_volume()
+        self._symbol = self._trading_day_list[num_trd - 1].get_symbol()
             
         #print("This is the SMA10 value {}".format(self.get_10_day_sma()))    
             #print("Stock symbol {} and date {}".format(trading_day.get_symbol(), trading_day.get_date()))
@@ -244,29 +247,34 @@ class Security:
     def get_close(self):
         return self._current_day_close
 
-
+    def get_symbol(self):
+        return self._symbol
         
 
 def main():
-    
-    # Set the logging level.
-    
-    
-    
 
- 
-    # this is the base URL that will be used to query Yahoo finance for historical pricing data.
-    # we will replace the #### string with the stock symbol when looking through the_stocks tuple.
+    # Grab what environment we will be working in from the 'ENV' environment variable.  Either DEV or PROD.
+    environment = os.getenv('ENV', 'DEV')
+
+    # Set the dates to be used throughout the script.
+    
+    # Set the time offset by environment.  Locally we run a day behind since we are running it during the day and the market hasn't closed yet.
+    # In PROD we run 5 hours behind on timestamps since AWS servers run at GMT time.
+    offset = 0
+    if environment == 'PROD': offset = 5
+    elif environment == 'DEV': offset = 24
+    else: logging.warn("The environment variable isn't set!!!!")
     
     # For the purposes of development I am having the end_date be yesterday so that I can run this during the day.  Usually this will run at night so we can get the close prices.
-    end_date = datetime.date.today() - datetime.timedelta(hours=48)
-    # Start date is represented by @@@@ in the url.
-    # Go back 100 calendar days which should give us around 70 trading days.
+    end_date = datetime.date.today() - datetime.timedelta(hours=offset)
+    # Go back 300 calendar days which should give us around 204 trading days.
+    # We do this because our EMA needs the previous EMA to calculate.  Instead we use the SMA so we're going back relatively far to smooth out any differences.
     start_date = end_date - datetime.timedelta(days=300)
     today_date_string = str(end_date) 
     
     log_file_name = ".".join(("_".join(("screener", today_date_string)),"log"))
     
+    # Set the logging level.
     logging.basicConfig(filename=log_file_name,level=logging.INFO)
     
     logging.info("Starting processing for the {} trading day at {}.".format(end_date, datetime.datetime.today()))
@@ -276,10 +284,11 @@ def main():
     historical_data_url = historical_data_url.replace('SSSS', str(start_date))
     historical_data_url = historical_data_url.replace("EEEE", str(end_date))
 
+    
     notification_dict = {}
 
-    def tally_notification(symbol = '', trend_type = ''):
-        notification_dict[symbol] = trend_type
+    def tally_notification(stock = None, trend_type = ''):
+        notification_dict[stock] = trend_type
     
     def save_up_trend(symbol = '', new = False):
         return_code = 0
@@ -337,18 +346,19 @@ def main():
     
     # This list of stocks we will iterate through to select historical data from yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
-    #the_stocks = ("AMD", "HSTM")
-    
-    company_list = open('companylist.csv')
-
     the_stocks = []
-    for line in company_list:
+    if environment == 'PROD': 
+        company_list = open('companylist.csv')
+
+        for line in company_list:
+            # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
+            if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
+            else:
+                stock_symbol_list = line.split(',')
+                the_stocks.append(stock_symbol_list[0].strip('"')) 
+    else: the_stocks = ["AMD", "HSTM", "GRPN", "EBAY", "MET", "NVDA", "TWTR", "MSFT", "NFLX", "AAPL", "C", "ANTH", "APOL","RCII","TROW","DVAX","BMRN","LLTC","PRGX","ASML","MFRI","TTGT","CELG","VNOM","TITN","ININ","XENE","ILMN"]
         
-        # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
-        if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
-        else:
-            stock_symbol_list = line.split(',')
-            the_stocks.append(stock_symbol_list[0].strip('"')) 
+
     
     for k in the_stocks:
         
@@ -393,13 +403,13 @@ def main():
                 # Check for down-trend
                 if ten_day_sma < twenty_day_ema or ten_day_sma < thirty_day_ema: down_signal_generated = True
                     
-                # Open a connection to our Dynamodb table for current trends.
-                
-                # For local development.
-                #dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
+                # Depending on environment, open locally or to our PROD db.
+                # we default to local development.
+                if environment == "PROD": dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.coms")
+                else: dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
                 
                 # For running against our AWS instance.
-                dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
+                #dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.coms")
                 
                 current_trend_table = dynamodb.Table('Current_Trend')             
                 
@@ -416,7 +426,7 @@ def main():
                     if len(response) == 1:
                         # Save the trend to the db.
                         logging.info("Saving trend to the db")
-                        if save_up_trend(k, True) == 1: tally_notification(k, 'up')
+                        if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up')
                         else: logging.warn("We were unable to save the up-trend for {}".format(k))
                         
                     elif len(response) > 1:
@@ -427,7 +437,7 @@ def main():
                         if response['Item']['up_trend'] == True: logging.info("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
                         elif response['Item']['up_trend'] == False:
                             # Updating trend in the database.
-                            if save_up_trend(k, True) == 1: tally_notification(k, 'up') 
+                            if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up') 
                             else: logging.warn("We were unable to save the new up-trend for {}".format(k))
                 elif down_signal_generated: 
                     logging.info("We have a down-trend signal from {}".format(k))
@@ -437,7 +447,7 @@ def main():
                     if len(response) == 1:
                         # Save the trend to the db as this is a either a new signal or a new stock.
                         logging.info("Saving new trend to the db")
-                        if save_down_trend(k, True) == 1: tally_notification(k, 'down') 
+                        if save_down_trend(k, True) == 1: tally_notification(my_stock, 'down') 
                         else: logging.warn("We were unable to save the down-trend for {}".format(k))
                         
                     elif len(response) > 1:
@@ -447,7 +457,7 @@ def main():
                         if response['Item']['down_trend'] == True: logging.info("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
                         elif response['Item']['down_trend'] == False:
                             # Updating trend in the database.
-                            if save_down_trend(k, False) == 1: tally_notification(k, 'down')
+                            if save_down_trend(k, False) == 1: tally_notification(my_stock, 'down')
                             else: logging.warn("We were unable to save the new down-trend for {}".format(k))        
                 else:
                     logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
@@ -460,12 +470,33 @@ def main():
         except TypeError: logging.info("Came back with a TypeError from Yahoo Finance.")    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
         except IndexError: logging.info("Somehow we got a stock through that didn't have enough entries.")
         logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
-    logging.info(len(notification_dict))
     
+    
+    # Now we write out our results sorted on volume and price ranges. 
+    results_file = open("results_{}.log".format(today_date_string), 'w')
     if len(notification_dict) > 0:
+        
+        print("The following stocks have new trends, are trading over 500k shares per day, and are priced under $20:\n", file=results_file)
+        
         for j in notification_dict.keys():
-            logging.info("You have new {} trend for {}".format(notification_dict[j], j))
-    else: logging.info("No new trend notifications today.")
+            if j.get_volume() >= 500000 and j.get_close() <= 20:
+                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file)
+        
+        print("\nThe following stocks have new trends, are trading over 500k shares per day, but are priced over $20:\n", file=results_file)  
+                
+        for j in notification_dict.keys():
+            if j.get_volume() >= 500000 and j.get_close() > 20:
+                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file) 
+        
+        print("\nThe following stocks have new trends, are trading under 500k shares per day, and are priced over $20:\n", file=results_file)
+        for j in notification_dict.keys():
+            if j.get_volume() < 500000 and j.get_close() > 20:
+                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file) 
+
+ 
+        
+        
+    else: print("You have no new trends today", file=results_file)
     
     logging.info("All Done at {}.".format(datetime.datetime.today()))
 
