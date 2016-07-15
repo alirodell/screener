@@ -497,6 +497,15 @@ def main():
         
     else: print("You have no new trends today", file=results_file)
     
+    # If we're in PROD then copy the results file to S3.
+    if environment == 'PROD':
+        try:
+            s3 = boto3.resource('s3')
+            s3.Object('rodell-screener-output', results_file).upload_file(results_file)
+            logging.info("Results file saved to S3.")
+        except: logging.info("Had an issue writing the {} file to S3.".format(results_file))
+    else: logging.info("Not saving results file to S3 since we're in DEV.")
+    
     logging.info("All Done at {}.".format(datetime.datetime.today()))
 
     
