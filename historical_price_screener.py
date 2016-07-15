@@ -357,9 +357,8 @@ def main():
                 stock_symbol_list = line.split(',')
                 the_stocks.append(stock_symbol_list[0].strip('"')) 
     else: the_stocks = ["AMD", "HSTM", "GRPN", "EBAY", "MET", "NVDA", "TWTR", "MSFT", "NFLX", "AAPL", "C", "ANTH", "APOL","RCII","TROW","DVAX","BMRN","LLTC","PRGX","ASML","MFRI","TTGT","CELG","VNOM","TITN","ININ","XENE","ILMN"]
-        
-
-    
+ 
+    # Now loop through the stocks and do your work.
     for k in the_stocks:
         
         logging.info("-----------------Starting work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
@@ -405,7 +404,7 @@ def main():
                     
                 # Depending on environment, open locally or to our PROD db.
                 # we default to local development.
-                if environment == "PROD": dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.coms")
+                if environment == "PROD": dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
                 else: dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="http://localhost:8000")
                 
                 # For running against our AWS instance.
