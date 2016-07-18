@@ -498,7 +498,7 @@ def main():
    
     
     # If we're in PROD then copy the results file to S3.
-    if environment == 'DEV':
+    if environment == 'PROD':
         try:
         
             s3 = boto3.resource('s3')
