@@ -5,6 +5,7 @@ import datetime
 import boto3
 import logging
 import os
+import time
 from _ctypes import ArgumentError
 
 
@@ -24,16 +25,7 @@ from _ctypes import ArgumentError
     # key where the value is a list of dictionaries corresponding to each trading day. 
     # This is what we are passing into the "Security" object in the init method.
     ##################################################
-    
-    # Where we are:
-    #  - We are inserting the stock symbol into the YQL statement and then executing it and parsing out results.
-    #  - We've got the Security object mostly set up, still need to set up the "set methods"
-    #  - The "TradingDay" object is set up and working well, all get/set methods are written and we can sort a list of them.
-    #  - We're calculating the 10 day SMA for a security as of the last trading day we have. See Questions on this one.
-    #
-    ###################################################    
-    
-     
+
 
 class TradingDay:
     def __init__(self, sec_trading_data = None):    
@@ -126,8 +118,7 @@ class Security:
         
         num_trd = len(self._trading_day_list)
         
-        logging.info("This is the total number of trading days - {}".format(num_trd))
-        #print("This is the total number of trading days - {}".format(num_trd))    
+        #logging.info("This is the total number of trading days - {}".format(num_trd))  
                
         # Calculate and assign the moving averages
         self._10_day_sma = self.calc_simple_moving_average(10, num_trd)
@@ -256,6 +247,10 @@ def main():
     # Grab what environment we will be working in from the 'ENV' environment variable.  Either DEV or PROD.
     environment = os.getenv('ENV', 'DEV')
 
+    # Set an error counter to track the number of errors by error type:
+    error_counter = { 'Connection Error' : 0, 'Type Error' : 0, 'Index Error' : 0, 'Other Error' : 0 }
+    
+    
     # Set the dates to be used throughout the script.
     
     # Set the time offset by environment.  Locally we run a day behind since we are running it during the day and the market hasn't closed yet.
@@ -344,20 +339,37 @@ def main():
     
         
     
-    # This list of stocks we will iterate through to select historical data from yahoo finance.
+    # This list of stocks we will iterate through to select historical data from Yahoo finance.
     # This list -MUST- have at least two stocks in it in order for this script to work.
-    the_stocks = []
-    if environment == 'PROD': 
-        company_list = open('companylist.csv')
+    
+    # Pull the stock lists from S3.
+    the_stocks = [] 
+       
+    if environment == 'DEV':
+        try:
+            input_file_list = ('NASDAQ.csv', 'NYSE.csv')
+            s3_inputs = boto3.resource('s3')
+            for name in input_file_list:
+                s3_inputs.Object('rodell-screener-input', name).download_file(name)
+                logging.info("Saved {} locally for processing.".format(name))
+                # Need to catch a file not found exception here.
+                company_list = open(name)
+                
+                for line in company_list:
+                    # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
+                    if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
+                    else:
+                        stock_symbol_list = line.split(',')
+                        the_stocks.append(stock_symbol_list[0].strip('"')) 
 
-        for line in company_list:
-            # Skip the first line since it's the column headers and filter out any strange symbols that we don't want to look at.
-            if(line.find("Symbol") != -1 or line.find("n/a") != -1): pass
-            else:
-                stock_symbol_list = line.split(',')
-                the_stocks.append(stock_symbol_list[0].strip('"')) 
+                logging.info("Added stocks from {} for processing.".format(name))
+        except: 
+            logging.exception("Had an issue downloading your input files from S3.")
+            exit() # If we can't get our inputs then we can't proceed.
     else: the_stocks = ["AMD", "HSTM", "GRPN", "EBAY", "MET", "NVDA", "TWTR", "MSFT", "NFLX", "AAPL", "C", "ANTH", "APOL","RCII","TROW","DVAX","BMRN","LLTC","PRGX","ASML","MFRI","TTGT","CELG","VNOM","TITN","ININ","XENE","ILMN"]
  
+    logging.info("We are processing {} stocks today.".format(len(the_stocks)))
+        
     # Now loop through the stocks and do your work.
     for k in the_stocks:
         
@@ -466,12 +478,26 @@ def main():
                 
                
             else: logging.info("This stock has not been traded long enough to do analysis on it.")
-        except TypeError as te: logging.warn("Came back with a TypeError from Yahoo Finance. The error was: {}".format(te))    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
-        except IndexError as ie: logging.warn("Somehow we got a stock through that didn't have enough entries. The error was: {}".format(ie))
-        except ConnectionError as ce: logging.warn("We encountered an error connecting to Yahoo Finance. The error was: {}".format(ce)) 
-        except: logging.exception("Had an issue processing {}".format(k)) # We keep going since sometimes Yahoo craps out on us. MIGHT WANT TO ADD AN ERROR COUNTER AND EXIT THE SCRIPT IF WE HIT A THRESHOLD.
+        except TypeError as te: 
+            error_counter['Type Error'] += 1
+            logging.warn("Came back with a TypeError from Yahoo Finance. We have {} of this type error. The error was: {}".format(str(error_counter['Type Error']), te))    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
+        except IndexError as ie: 
+            error_counter['Index Error'] += 1
+            logging.warn("Somehow we got a stock through that didn't have enough entries. We have {} of this type error. The error was: {}".format(str(error_counter['Type Error']), ie))
+        except ConnectionError as ce: 
+            error_counter['Connection Error'] += 1
+            logging.warn("We encountered an error connecting to Yahoo Finance. We have {} of this type error. The error was: {}".format(str(error_counter['Connection Error']), ce))
+            
+         
+        except: 
+            error_counter['Other Error'] += 1
+            logging.exception("Had an issue processing {}. The current uncategorized error count is {}".format(k, str(error_counter['Other Error']))) # We keep going since sometimes Yahoo craps out on us. MIGHT WANT TO ADD AN ERROR COUNTER AND EXIT THE SCRIPT IF WE HIT A THRESHOLD.
         logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
-    
+        
+        # Yahoo has a limit of 2000 requests per hour. If we are going to run through the entire stock list then we should wait a few seconds between each so that we don't run up against it.
+        if environment == 'DEV': 
+            logging.info("Waiting for 2 seconds in between requests to Yahoo to let them rest...")
+            time.sleep(2)
     
     # Now we write out our results sorted on volume and price ranges. 
     results_file_name = "results_{}.log".format(today_date_string)
@@ -503,9 +529,9 @@ def main():
     if environment == 'PROD':
         try:
         
-            s3 = boto3.resource('s3')
-            s3.Object('rodell-screener-output', results_file_name).upload_file(results_file_name)
-            s3.Object('rodell-screener-output', log_file_name).upload_file(log_file_name)
+            s3_outputs = boto3.resource('s3')
+            s3_outputs.Object('rodell-screener-output', results_file_name).upload_file(results_file_name)
+            s3_outputs.Object('rodell-screener-output', log_file_name).upload_file(log_file_name)
             logging.info("Log file and results file have been saved to S3.")
         
         except: logging.exception("Had an issue writing files to S3.")
