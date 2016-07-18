@@ -256,7 +256,7 @@ def main():
     # Set the time offset by environment.  Locally we run a day behind since we are running it during the day and the market hasn't closed yet.
     # In PROD we run 5 hours behind on timestamps since AWS servers run at GMT time.
     offset = 0
-    if environment == 'PROD': offset = 5
+    if environment == 'PROD': offset = 10
     elif environment == 'DEV': offset = 24
     else: logging.warn("The environment variable isn't set!!!!")
     
@@ -345,7 +345,7 @@ def main():
     # Pull the stock lists from S3.
     the_stocks = [] 
        
-    if environment == 'DEV':
+    if environment == 'PROD':
         try:
             input_file_list = ('NASDAQ.csv', 'NYSE.csv')
             s3_inputs = boto3.resource('s3')
@@ -495,7 +495,7 @@ def main():
         logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
         
         # Yahoo has a limit of 2000 requests per hour. If we are going to run through the entire stock list then we should wait a few seconds between each so that we don't run up against it.
-        if environment == 'DEV': 
+        if environment == 'PROD': 
             logging.info("Waiting for 2 seconds in between requests to Yahoo to let them rest...")
             time.sleep(2)
     
