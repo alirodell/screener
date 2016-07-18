@@ -60,8 +60,8 @@ class TradingDay:
                 date_parts = self._data['Date'].split('-')
                 self._date = datetime.date(int(date_parts[0]),int(date_parts[1]),int(date_parts[2]))
             else: raise ArgumentError
-        except KeyError: logging.info("Threw a key error while populating this trading day.")
-        except ArgumentError: logging.info("There is an issue with the arguments passed into the TradingDay class")
+        except KeyError as e: logging.info("Threw a key error while populating this trading day:", e)
+        except ArgumentError as e: logging.info("There is an issue with the arguments passed into the TradingDay class:", e)
     
     # Set this so that you can just call .sort() on a list of these objects and sort them by date.
     def __lt__(self,other):           
@@ -472,7 +472,8 @@ def main():
     
     
     # Now we write out our results sorted on volume and price ranges. 
-    results_file = open("results_{}.log".format(today_date_string), 'w')
+    results_file_name = "results_{}.log".format(today_date_string)
+    results_file = open(results_file_name, 'w')
     if len(notification_dict) > 0:
         
         print("The following stocks have new trends, are trading over 500k shares per day, and are priced under $20:\n", file=results_file)
@@ -490,20 +491,22 @@ def main():
         print("\nThe following stocks have new trends, are trading under 500k shares per day, and are priced over $20:\n", file=results_file)
         for j in notification_dict.keys():
             if j.get_volume() < 500000 and j.get_close() > 20:
-                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file) 
-
- 
-        
+                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file)    
         
     else: print("You have no new trends today", file=results_file)
+    results_file.close()
+   
     
     # If we're in PROD then copy the results file to S3.
-    if environment == 'PROD':
+    if environment == 'DEV':
         try:
+        
             s3 = boto3.resource('s3')
-            s3.Object('rodell-screener-output', results_file).upload_file(results_file)
-            logging.info("Results file saved to S3.")
-        except: logging.info("Had an issue writing the {} file to S3.".format(results_file))
+            s3.Object('rodell-screener-output', results_file_name).upload_file(results_file_name)
+            s3.Object('rodell-screener-output', log_file_name).upload_file(log_file_name)
+            logging.info("Log file and results file have been saved to S3.")
+        
+        except: logging.exception("Had an issue writing files to S3.")
     else: logging.info("Not saving results file to S3 since we're in DEV.")
     
     logging.info("All Done at {}.".format(datetime.datetime.today()))
