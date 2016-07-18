@@ -437,7 +437,7 @@ def main():
                         elif response['Item']['up_trend'] == False:
                             # Updating trend in the database.
                             if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up') 
-                            else: logging.warn("We were unable to save the new up-trend for {}".format(k))
+                            else: logging.warn("We were unable to save the new up-trend for {}".format(k)) # Should probably change this to the method call raising an exception and catch it here.
                 elif down_signal_generated: 
                     logging.info("We have a down-trend signal from {}".format(k))
                     # When a down-trend occurs we check if the stock has a stored down-trend. 
@@ -466,8 +466,10 @@ def main():
                 
                
             else: logging.info("This stock has not been traded long enough to do analysis on it.")
-        except TypeError: logging.info("Came back with a TypeError from Yahoo Finance.")    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
-        except IndexError: logging.info("Somehow we got a stock through that didn't have enough entries.")
+        except TypeError as te: logging.warn("Came back with a TypeError from Yahoo Finance. The error was: {}".format(te))    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
+        except IndexError as ie: logging.warn("Somehow we got a stock through that didn't have enough entries. The error was: {}".format(ie))
+        except ConnectionError as ce: logging.warn("We encountered an error connecting to Yahoo Finance. The error was: {}".format(ce)) 
+        except: logging.exception("Had an issue processing {}".format(k)) # We keep going since sometimes Yahoo craps out on us. MIGHT WANT TO ADD AN ERROR COUNTER AND EXIT THE SCRIPT IF WE HIT A THRESHOLD.
         logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
     
     

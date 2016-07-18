@@ -7,9 +7,19 @@ dynamodb = boto3.resource('dynamodb', region_name='us-west-2', endpoint_url="htt
 # Interesting thing to note is that when you create the tables you only define the keys.  Not the other attributes.
 #
 
+current_trend_table = dynamodb.Table('Current_Trend')
+current_trend_table.delete()
+
+
+trend_history_table = dynamodb.Table('Trend_History')
+trend_history_table.delete()
+
+print("Tables Deleted.")
+
+
 
 # There is one entry per stock symbol in this table.
-current_trend_table = dynamodb.create_table(
+new_current_trend_table = dynamodb.create_table(
     TableName='Current_Trend',
     KeySchema=[
         {
@@ -30,10 +40,10 @@ current_trend_table = dynamodb.create_table(
     }
 )
 
-print("Current Trend Table status:", current_trend_table.table_status)
+print("Current Trend Table status:", new_current_trend_table.table_status)
 
 # There will be many entries per stock symbol in this table.
-trend_history_table = dynamodb.create_table(
+new_trend_history_table = dynamodb.create_table(
     TableName='Trend_History',
     KeySchema=[
         {
@@ -61,5 +71,5 @@ trend_history_table = dynamodb.create_table(
     }
 )
 
-print("Trend History Table status:", trend_history_table.table_status)
+print("Trend History Table status:", new_trend_history_table.table_status)
 
