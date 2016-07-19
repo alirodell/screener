@@ -94,6 +94,7 @@ class Security:
         self._10_day_sma = 0.0
         self._20_day_ema = 0.0
         self._30_day_ema = 0.0
+        self._chaikin_money_flow = 0.0
         self._current_day_volume = 0
         self._current_day_close = 0.0
         self._symbol = ''
@@ -125,6 +126,10 @@ class Security:
         self._20_day_ema = self.calc_exp_moving_average(20, num_trd)
         self._30_day_ema = self.calc_exp_moving_average(30, num_trd)
         
+        # Calculate and assign the Chaikin Money Flow
+        # Going to use a 15 day period CMF since that is the default I've been using with Fidelity.
+        self._chaikin_money_flow = self.calc_chaikin_money_flow(15, num_trd)
+        
         # Assign the other values - these are all for the current trading day only.
         # We are running this script after the market closes. 
         self._current_day_close = self._trading_day_list[num_trd - 1].get_close()
@@ -133,6 +138,36 @@ class Security:
             
         #print("This is the SMA10 value {}".format(self.get_10_day_sma()))    
             #print("Stock symbol {} and date {}".format(trading_day.get_symbol(), trading_day.get_date()))
+    
+    def calc_chaikin_money_flow(self, period = 0, num_trd_days = 0):
+        # This isn't great because the CMF can actually be zero.
+        chaikin_money_flow = 0.0
+        if period > 0:
+            # For each of the last $period days of trading we calculate the money flow multiplier and the money flow volume then we sum them and divide them.
+            # Money flow multiplier = [(Close - Low) - (High - Close)] / (High - Low) 
+            # Money flow volume = money flow multiplier x volume for the period
+            # -period- CMF = $period sum of the money flow volume / $period day sum of the volume.
+            
+            sum_of_money_flow_volume = 0.0
+            sum_of_volume = 0
+            
+            for i in range(period):
+                high = float(self._trading_day_list[num_trd_days-(i+1)].get_high())
+                low = float(self._trading_day_list[num_trd_days-(i+1)].get_low())
+                close_price = float(self._trading_day_list[num_trd_days-(i+1)].get_close())
+                volume = float(self._trading_day_list[num_trd_days-(i+1)].get_volume())
+                
+                #print("For {} trading day: High is {}, low is {}, close is {}, and volume is {}".format(self._trading_day_list[num_trd_days-(i+1)].get_date(),high,low,close_price, volume))
+                
+                money_flow_multiplier = ((close_price - low) - (high - close_price)) / (high - low)
+                money_flow_volume = money_flow_multiplier * volume
+                sum_of_money_flow_volume += money_flow_volume
+                sum_of_volume += volume
+                
+            chaikin_money_flow = sum_of_money_flow_volume / sum_of_volume     
+    
+    
+        return chaikin_money_flow
     
     def calc_exp_moving_average(self, period = 0, num_trd_days = 0):
                 
@@ -228,6 +263,9 @@ class Security:
     
     def get_30_day_ema(self):
         return self._30_day_ema
+    
+    def get_chaikin_money_flow(self):
+        return self._chaikin_money_flow
     
     def get_raw_data(self):
         return self._data
@@ -406,7 +444,8 @@ def main():
                 ten_day_sma = my_stock.get_10_day_sma()
                 twenty_day_ema = my_stock.get_20_day_ema()
                 thirty_day_ema = my_stock.get_30_day_ema()
-
+                # Haven't integrated the sorting on CMF into the criteria yet so we're just listing it in the results file.
+                #chaikin_money_flow = my_stock.get_chaikin_money_flow()
                 
                 # Check for up-trend
                 if ten_day_sma > twenty_day_ema or ten_day_sma > thirty_day_ema: up_signal_generated = True
@@ -474,7 +513,7 @@ def main():
                     logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
                 
                 
-                logging.info("Current 10 day SMA is {}, current 20 day EMA is {}, and current 30 day EMA is {}".format(my_stock.get_10_day_sma(), my_stock.get_20_day_ema(),my_stock.get_30_day_ema()))
+                logging.info("Current 10 day SMA is {}, current 20 day EMA is {}, and current 30 day EMA is {}".format(round(my_stock.get_10_day_sma(), 2), round(my_stock.get_20_day_ema(), 2),round(my_stock.get_30_day_ema(), 2)))
                 
                
             else: logging.info("This stock has not been traded long enough to do analysis on it.")
@@ -508,18 +547,18 @@ def main():
         
         for j in notification_dict.keys():
             if j.get_volume() >= 500000 and j.get_close() <= 20:
-                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file)
+                print("\tYou have a new {} trend for {} - CMF is {}".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
         
         print("\nThe following stocks have new trends, are trading over 500k shares per day, but are priced over $20:\n", file=results_file)  
                 
         for j in notification_dict.keys():
             if j.get_volume() >= 500000 and j.get_close() > 20:
-                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file) 
+                print("\tYou have a new {} trend for {} - CMF is {}".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file) 
         
         print("\nThe following stocks have new trends, are trading under 500k shares per day, and are priced over $20:\n", file=results_file)
         for j in notification_dict.keys():
             if j.get_volume() < 500000 and j.get_close() > 20:
-                print("\tYou have a new {} trend for {}".format(notification_dict[j], j.get_symbol()), file=results_file)    
+                print("\tYou have a new {} trend for {} - CMF is {}".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)    
         
     else: print("You have no new trends today", file=results_file)
     results_file.close()
