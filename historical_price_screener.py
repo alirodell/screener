@@ -159,7 +159,13 @@ class Security:
                 
                 #print("For {} trading day: High is {}, low is {}, close is {}, and volume is {}".format(self._trading_day_list[num_trd_days-(i+1)].get_date(),high,low,close_price, volume))
                 
-                money_flow_multiplier = ((close_price - low) - (high - close_price)) / (high - low)
+                # There is a chance that the high and low prices will be the same which means that we might be dividing by zero here.
+                money_flow_multiplier = 0.0
+                try:
+                    money_flow_multiplier = ((close_price - low) - (high - close_price)) / (high - low)
+                except ZeroDivisionError as zde:
+                    # Log the relevant values and leave the multiplier as zero. We need to check these values against reality.
+                    logging.warn("We got a divide by zero error. High is {}, low is {}, close is {}, and volume is {}. Your error message was: {}".format(high, low, close_price, volume, zde))
                 money_flow_volume = money_flow_multiplier * volume
                 sum_of_money_flow_volume += money_flow_volume
                 sum_of_volume += volume
@@ -426,6 +432,7 @@ def main():
                 # This means something went wrong.
                 # I should raise a custom exception for this.
                 logging.warn("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
+                logging.warn("The specific query string that you received an error for was: {}".format(specific_query))
                         
             bulk_response = hist_resp.json()['query']
             
