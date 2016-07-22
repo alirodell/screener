@@ -5,6 +5,7 @@ import datetime
 import boto3
 import logging
 import os
+import sys
 import time
 from _ctypes import ArgumentError
 
@@ -297,18 +298,22 @@ def main():
     
     # Set the dates to be used throughout the script.
     
-    # Set the time offset by environment.  Locally we run a day behind since we are running it during the day and the market hasn't closed yet.
-    # In PROD we run 5 hours behind on timestamps since AWS servers run at GMT time.
-    offset = 0
-    if environment == 'PROD': offset = 10
-    elif environment == 'DEV': offset = 24
-    else: logging.warn("The environment variable isn't set!!!!")
-    
+    # If there is an argument passed in then the date passed in will be used, otherwise, just go back a day.
     # For the purposes of development I am having the end_date be yesterday so that I can run this during the day.  Usually this will run at night so we can get the close prices.
-    end_date = datetime.date.today() - datetime.timedelta(hours=offset)
+    # Since we are running this at night on AWS and their system clocks are at UTC we can also subtract a day from those times.  That works for both scenarios.
+    end_date = datetime.date.today() - datetime.timedelta(days=1)
     # Go back 300 calendar days which should give us around 204 trading days.
     # We do this because our EMA needs the previous EMA to calculate.  Instead we use the SMA so we're going back relatively far to smooth out any differences.
     start_date = end_date - datetime.timedelta(days=300)
+    num_args = len(sys.argv)
+    
+    # However...  If a command line argument is passed in then we parse that out and use that as the end date for analysis.  This allows us to run analysis from the past to do catch-up, etc, without having to modify the script.
+    if num_args == 2: # Then the date was passed in
+        
+        date_pieces = sys.argv[1].split('-')
+        end_date = datetime.date(int(date_pieces[2]),int(date_pieces[1]),int(date_pieces[0]))
+        logging.info("The following date was passed in, we will use this as our end_date: {}".format(end_date))
+    
     today_date_string = str(end_date) 
     
     log_file_name = ".".join(("_".join(("screener", today_date_string)),"log"))
