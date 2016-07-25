@@ -338,7 +338,6 @@ def main():
     historical_data_url = historical_data_url.replace('SSSS', str(start_date))
     historical_data_url = historical_data_url.replace("EEEE", str(end_date))
 
-    
     notification_dict = {}
 
     def tally_notification(stock = None, trend_type = ''):
@@ -454,8 +453,8 @@ def main():
     else: the_stocks = ["AMD", "HSTM", "GRPN", "EBAY", "MET", "NVDA", "TWTR", "MSFT", "NFLX", "AAPL", "C", "ANTH", "APOL","RCII","TROW","DVAX","BMRN","LLTC","PRGX","ASML","MFRI","TTGT","CELG","VNOM","TITN","ININ","XENE","ILMN"]
  
     # Going to add the following indexes to the stock list and report them first in the results file.
-    indexes_to_add = ["SPY", "QQQ"]
-    for x in indexes_to_add: the_stocks.append(x)
+    securities_to_add = ["SPY", "QQQ"]
+    for x in securities_to_add: the_stocks.append(x)
  
     logging.info("We are processing {} stocks today.".format(len(the_stocks)))
         
@@ -538,8 +537,7 @@ def main():
                 # Open a connection to the trend_history_table.
                 trend_history_table = dynamodb.Table('Trend_History') 
                 
-                # Process our trend signals.
-                
+                # Process our trend signals.              
                 if heavy_volume_reversal_signal:
                     logging.info("We have a heavy volume reversal signal for {}".format(k))
                     if save_heavy_volume_reversal(k) == 1: tally_notification(k, 'heavy volume reversal')
@@ -563,7 +561,10 @@ def main():
                         # If it isn't, then update the entry to indicate up-trend = True, and down-trend = False.
                         # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
                         #trend_info = 
-                        if response['Item']['up_trend'] == True: logging.info("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
+                        if response['Item']['up_trend'] == True: 
+                            logging.info("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
+                            # If it is an index, we still notify, right at the top but we set the trend to "existing" in the notification_dict.  We leave the trend valid in the db, this is just for notification purposes.
+                            if k in securities_to_add: tally_notification(my_stock, 'existing-up')
                         elif response['Item']['up_trend'] == False:
                             # Updating trend in the database.
                             if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up') 
@@ -583,7 +584,10 @@ def main():
                         # Check if the stock is already on a downtrend, if it is, then just move on.  
                         # If it isn't, then update the entry to indicate down_trend = True, and up-trend = False.
                         # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
-                        if response['Item']['down_trend'] == True: logging.info("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
+                        if response['Item']['down_trend'] == True: 
+                            logging.info("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
+                            # If it is an index, we still notify, right at the top but we set the trend to "existing" in the notification_dict.  We leave the trend valid in the db, this is just for notification purposes.
+                            if k in securities_to_add: tally_notification(my_stock, 'existing-down')
                         elif response['Item']['down_trend'] == False:
                             # Updating trend in the database.
                             if save_down_trend(k, False) == 1: tally_notification(my_stock, 'down')
@@ -620,11 +624,24 @@ def main():
     # Now we write out our results sorted on volume and price ranges. 
     results_file_name = "results_{}.log".format(today_date_string)
     results_file = open(results_file_name, 'w')
-    if len(notification_dict) > 0:
-        
-        print("The following stocks threw a heavy volume reversal signal:\n", file=results_file)
+    
+    if len(notification_dict) > 0:  
  
+        # First we loop through and notify on our indices.
+        
+        # First report our indices.
+        print("Current Index Trends:\n", file=results_file)
+        
         for j in notification_dict.keys():
+            for x in securities_to_add: 
+                if x == j.get_symbol(): 
+                    print("\t{} is currently in a {} trend with CMF of {}\n".format(x, notification_dict[j], round(j.get_chaikin_money_flow(), 2)), file=results_file)  
+        
+        # Then report on our heavy volume reversals.    
+        print("The following stocks threw a heavy volume reversal signal:\n", file=results_file)
+        
+        for j in notification_dict.keys():
+            
             if notification_dict[j] == 'heavy volume reversal':
                 volume = j.get_volume()
                 close_price = j.get_close()
