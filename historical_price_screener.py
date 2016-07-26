@@ -628,25 +628,35 @@ def main():
     
     
     # Now we write out our results sorted on volume and price ranges. 
-    results_file_name = "results_{}.log".format(today_date_string)
+    results_file_name = "results_{}.html".format(today_date_string)
     results_file = open(results_file_name, 'w')
     
-    print("Results for {}:\n".format(today_date_string), file=results_file)
+    print("""<!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <title>
+        Results for {}:\n
+        </title>
+        </head> 
+        <body>
+        <h2> Here are the results for {}. </h2>
+        <a href="#">Back to the index.</a>""".format(today_date_string, today_date_string), file=results_file)
     
     if len(notification_dict) > 0:  
  
         # First we loop through and notify on our indices.
         
         # First report our indices.
-        print("Current Index Trends:\n", file=results_file)
+        print("<h4>Current Index Trends:</h4>\n<ul>\n", file=results_file)
         
         for j in notification_dict.keys():
             for x in securities_to_add: 
                 if x == j.get_symbol(): 
-                    print("\t{} is currently in a {} trend with CMF of {}\n".format(x, notification_dict[j], round(j.get_chaikin_money_flow(), 2)), file=results_file)  
+                    print("<li>{} is currently in a {} trend with CMF of {}</li>\n".format(x, notification_dict[j], round(j.get_chaikin_money_flow(), 2)), file=results_file)  
         
+        print("</ul>", file=results_file)
         # Then report on our heavy volume reversals.    
-        print("The following stocks threw a heavy volume reversal signal:\n", file=results_file)
+        print("<h4>The following stocks threw a heavy volume reversal signal:</h4>\n<ul>\n", file=results_file)
         
         for j in notification_dict.keys():
             
@@ -658,33 +668,43 @@ def main():
                 vol_percent_change = yesterday_volume / volume
                 close_percent_change = yesterday_close / close_price
             
-                print("\tYou have a new {} signal for {} - CMF is {}\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
-                print("\tStats are as follows:\n")
-                print("\t\tVolume: {}\n".format(volume))
-                print("\t\tClose: {}\n".format(close_price))
-                print("\t\tYesterday's Volume: {}\n".format(yesterday_volume))
-                print("\t\tYesterday's Close: {}\n".format(yesterday_close))
-                print("\t\tVolume Percent Change: {}\n".format(vol_percent_change))
-                print("\t\tClose Percent Change: {}\n".format(close_percent_change))
+                print("<li>You have a new {} signal for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
+                print("<li>Stats are as follows:\n", file=results_file)
+                print("<ul>", file=results_file)
+                print("<li>Volume: {}</li>\n".format(volume), file=results_file)
+                print("<li>Close: {}</li>\n".format(close_price), file=results_file)
+                print("<li>Yesterday's Volume: {}</li>\n".format(yesterday_volume), file=results_file)
+                print("<li>Yesterday's Close: {}</li>\n".format(yesterday_close), file=results_file)
+                print("<li>Volume Percent Change: {}</li>\n".format(vol_percent_change), file=results_file)
+                print("<li>Close Percent Change: {}</li>\n".format(close_percent_change), file=results_file)
+                print("</ul>", file=results_file)
         
-        print("The following stocks have new trends, are trading over 500k shares per day, and are priced under $20:\n", file=results_file)
+        print("</ul>", file=results_file)
+        print("<h4>The following stocks have new trends, are trading over 500k shares per day, and are priced under $20:</h4>\n<ul>", file=results_file)
         
         for j in notification_dict.keys():
             if j.get_volume() >= 500000 and j.get_close() <= 20:
-                print("\tYou have a new {} trend for {} - CMF is {}".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
+                print("<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
         
-        print("\nThe following stocks have new trends, are trading over 500k shares per day, but are priced over $20:\n", file=results_file)  
+        print("</ul>", file=results_file)
+        
+        print("<h4>The following stocks have new trends, are trading over 500k shares per day, but are priced over $20:</h4>\n<ul>\n", file=results_file)  
                 
         for j in notification_dict.keys():
             if j.get_volume() >= 500000 and j.get_close() > 20:
-                print("\tYou have a new {} trend for {} - CMF is {}".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file) 
+                print("<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file) 
         
-        print("\nThe following stocks have new trends, are trading under 500k shares per day, and are priced over $20:\n", file=results_file)
+        print("</ul>", file=results_file)
+        
+        print("<h4>The following stocks have new trends, are trading under 500k shares per day, and are priced over $20:</h4>\n<ul>", file=results_file)
         for j in notification_dict.keys():
             if j.get_volume() < 500000 and j.get_close() > 20:
-                print("\tYou have a new {} trend for {} - CMF is {}".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)    
+                print("<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)    
         
-    else: print("You have no new trends or signals today", file=results_file)
+        print("</ul>", file=results_file)
+        
+    else: print("<h4>You have no new trends or signals today</h4>", file=results_file)
+    print("</body>\n</html>", file=results_file)
     results_file.close()
    
     
@@ -693,7 +713,7 @@ def main():
         try:
         
             s3_outputs = boto3.resource('s3')
-            s3_outputs.Object('rodell-screener-output', results_file_name).upload_file(results_file_name)
+            s3_outputs.Object('rodell.info', results_file_name).upload_file(results_file_name)
             s3_outputs.Object('rodell-screener-output', log_file_name).upload_file(log_file_name)
             logging.info("Log file and results file have been saved to S3.")
         
