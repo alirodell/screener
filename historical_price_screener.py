@@ -53,8 +53,9 @@ class TradingDay:
                 date_parts = self._data['Date'].split('-')
                 self._date = datetime.date(int(date_parts[0]),int(date_parts[1]),int(date_parts[2]))
             else: raise ArgumentError
-        except KeyError as e: logging.info("Threw a key error while populating this trading day:", e)
-        except ArgumentError as e: logging.info("There is an issue with the arguments passed into the TradingDay class:", e)
+        except KeyError as e: logging.exception("Threw a key error while populating this trading day:", e)
+        except ArgumentError as e: logging.exception("There is an issue with the arguments passed into the TradingDay class:", e)
+        except: logging.exception("There is an issue assigning values within the __init__ function of the TradingDay class.")
     
     # Set this so that you can just call .sort() on a list of these objects and sort them by date.
     def __lt__(self,other):           
@@ -347,25 +348,27 @@ def main():
         return_code = 0
         
         if(len(symbol) > 0):
-            # We don't touch the trend signals since they can also be set and are independent of this signal.
-            current_trend_table.put_item(
-                Item={
-                      'stock_symbol': symbol,
-                      'heavy_volume_reversal': True,
-                      'trend_start_date': today_date_string 
-                }
-            )
-            
-            # I believe that we save this every time it happens since it's an event, not a trend.
-            trend_history_table.put_item(
-                Item={
-                      'stock_symbol': symbol,
-                      'occurence_date': today_date_string,
-                      'trend_type': 'heavy volume reversal'
-                }
-            )                
-
-            return_code = 1
+            try:
+                # We don't touch the trend signals since they can also be set and are independent of this signal.
+                current_trend_table.put_item(
+                    Item={
+                          'stock_symbol': symbol,
+                          'heavy_volume_reversal': True,
+                          'trend_start_date': today_date_string 
+                    }
+                )
+                
+                # I believe that we save this every time it happens since it's an event, not a trend.
+                trend_history_table.put_item(
+                    Item={
+                          'stock_symbol': symbol,
+                          'occurence_date': today_date_string,
+                          'trend_type': 'heavy volume reversal'
+                    }
+                )                
+    
+                return_code = 1
+            except: logging.exception("Ran into an issue saving your heavy volume reversal signal.")
         return return_code     
     
     
@@ -373,52 +376,56 @@ def main():
         return_code = 0
         
         if(len(symbol) > 0):
-            current_trend_table.put_item(
-                Item={
-                      'stock_symbol': symbol,
-                      'up_trend': True,
-                      'down_trend': False,
-                      'trend_start_date': today_date_string 
-                }
-            )
-            
-            # If the trend is new, we also update the trend_history table with an entry of trend. Occurrence 
-            if new: 
-                trend_history_table.put_item(
+            try:
+                current_trend_table.put_item(
                     Item={
                           'stock_symbol': symbol,
-                          'occurence_date': today_date_string,
-                          'trend_type': 'up'
+                          'up_trend': True,
+                          'down_trend': False,
+                          'trend_start_date': today_date_string 
                     }
-                )                
-            
-            
-            return_code = 1
+                )
+                
+                # If the trend is new, we also update the trend_history table with an entry of trend. Occurrence 
+                if new: 
+                    trend_history_table.put_item(
+                        Item={
+                              'stock_symbol': symbol,
+                              'occurence_date': today_date_string,
+                              'trend_type': 'up'
+                        }
+                    )                
+                
+                
+                return_code = 1
+            except: logging.exception("Ran into an issue saving your up trend.")
         return return_code 
  
     def save_down_trend(symbol = '', new = False):
         return_code = 0
         
-        if(len(symbol) > 0):
-            current_trend_table.put_item(
-                Item={
-                      'stock_symbol': symbol,
-                      'up_trend': False,
-                      'down_trend': True,
-                      'trend_start_date': today_date_string 
-                }
-            )
-            
-            if new: 
-                trend_history_table.put_item(
+        try:
+            if(len(symbol) > 0):
+                current_trend_table.put_item(
                     Item={
                           'stock_symbol': symbol,
-                          'occurence_date': today_date_string,
-                          'trend_type': 'down'
+                          'up_trend': False,
+                          'down_trend': True,
+                          'trend_start_date': today_date_string 
                     }
-                ) 
-            
-            return_code = 1
+                )
+                
+                if new: 
+                    trend_history_table.put_item(
+                        Item={
+                              'stock_symbol': symbol,
+                              'occurence_date': today_date_string,
+                              'trend_type': 'down'
+                        }
+                    ) 
+                
+                return_code = 1
+        except: logging.exception("Ran into an issue saving your down trend.")
         return return_code 
     
         
@@ -609,8 +616,6 @@ def main():
         except ConnectionError as ce: 
             error_counter['Connection Error'] += 1
             logging.warn("We encountered an error connecting to Yahoo Finance. We have {} of this type error. The error was: {}".format(str(error_counter['Connection Error']), ce))
-            
-         
         except: 
             error_counter['Other Error'] += 1
             logging.exception("Had an issue processing {}. The current uncategorized error count is {}".format(k, str(error_counter['Other Error']))) # We keep going since sometimes Yahoo craps out on us. MIGHT WANT TO ADD AN ERROR COUNTER AND EXIT THE SCRIPT IF WE HIT A THRESHOLD.
@@ -621,9 +626,12 @@ def main():
             logging.info("Waiting for 2 seconds in between requests to Yahoo to let them rest...")
             time.sleep(2)
     
+    
     # Now we write out our results sorted on volume and price ranges. 
     results_file_name = "results_{}.log".format(today_date_string)
     results_file = open(results_file_name, 'w')
+    
+    print("Results for {}:\n".format(today_date_string), file=results_file)
     
     if len(notification_dict) > 0:  
  
@@ -691,6 +699,9 @@ def main():
         
         except: logging.exception("Had an issue writing files to S3.")
     else: logging.info("Not saving results file to S3 since we're in DEV.")
+    
+    # Log the error counts. 
+    for x in error_counter.keys(): logging.info("We had {} instances of error type {}".format(error_counter[x],x))
     
     logging.info("All Done at {}.".format(datetime.datetime.today()))
 
