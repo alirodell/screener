@@ -628,6 +628,7 @@ def main():
     
     
     # Now we write out our results sorted on volume and price ranges. 
+    results_list_filename = "list.html"
     results_file_name = "results_{}.html".format(today_date_string)
     results_file = open(results_file_name, 'w')
     
@@ -640,7 +641,7 @@ def main():
         </head> 
         <body>
         <h2> Here are the results for {}. </h2>
-        <a href="#">Back to the index.</a>""".format(today_date_string, today_date_string), file=results_file)
+        <a href="{}">Back to the index.</a>""".format(today_date_string, today_date_string, results_list_filename), file=results_file)
     
     if len(notification_dict) > 0:  
  
@@ -713,7 +714,9 @@ def main():
         try:
         
             s3_outputs = boto3.resource('s3')
-            s3_outputs.Object('rodell.info', results_file_name).upload_file(results_file_name)
+            bucket = s3_outputs.Bucket('rodell.info')
+            # I had to do this upload differently so that I could set the content type. For some reason I couldn't do that for the direct upload.
+            bucket.upload_file(results_file_name, results_file_name, ExtraArgs={'ContentType': 'text/html'})
             s3_outputs.Object('rodell-screener-output', log_file_name).upload_file(log_file_name)
             logging.info("Log file and results file have been saved to S3.")
         
