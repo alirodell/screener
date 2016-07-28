@@ -353,7 +353,6 @@ def main():
 
     def format_CMF(cmf = 0.0):
         s = ''
-        print(str(round(cmf,2)))
         if cmf >= .1: s = "<b>" + str(round(cmf, 2)) + "</b>"
         elif cmf <= -.1: s = "<b>" + str(round(cmf, 2)) + "</b>"
         else: s = str(round(cmf, 2))
