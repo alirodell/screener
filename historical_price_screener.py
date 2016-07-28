@@ -306,7 +306,8 @@ def main():
     # Set an error counter to track the number of errors by error type:
     error_counter = { 'Connection Error' : 0, 'Type Error' : 0, 'Index Error' : 0, 'Other Error' : 0 }
     
-    
+    up_trend_count = 0
+    down_trend_count = 0
     # Set the dates to be used throughout the script.
     
     # If there is an argument passed in then the date passed in will be used, otherwise, just go back a day.
@@ -344,6 +345,22 @@ def main():
     def tally_notification(stock = None, trend_type = ''):
         notification_dict[stock] = trend_type
     
+    def make_color(s = '', color=''):
+        if len(s) > 0 and len(color) > 0:
+            s = ''.join(("<font color={}>".format(color),s,"</font>"))    
+        
+        return s     
+
+    def format_CMF(cmf = 0.0):
+        s = ''
+        print(str(round(cmf,2)))
+        if cmf >= .1: s = "<b>" + str(round(cmf, 2)) + "</b>"
+        elif cmf <= -.1: s = "<b>" + str(round(cmf, 2)) + "</b>"
+        else: s = str(round(cmf, 2))
+        
+        return s
+
+
     def save_heavy_volume_reversal(symbol = ''):
         return_code = 0
         
@@ -460,7 +477,7 @@ def main():
     else: the_stocks = ["AMD", "HSTM", "GRPN", "EBAY", "MET", "NVDA", "TWTR", "MSFT", "NFLX", "AAPL", "C", "ANTH", "APOL","RCII","TROW","DVAX","BMRN","LLTC","PRGX","ASML","MFRI","TTGT","CELG","VNOM","TITN","ININ","XENE","ILMN"]
  
     # Going to add the following indexes to the stock list and report them first in the results file.
-    securities_to_add = ["SPY", "QQQ"]
+    securities_to_add = ["SPY", "QQQ", "XLE"]
     for x in securities_to_add: the_stocks.append(x)
  
     logging.info("We are processing {} stocks today.".format(len(the_stocks)))
@@ -551,6 +568,7 @@ def main():
                     else: logging.warn("We were unable to save the heavy volume reversal trend for {}".format(k))
                 
                 if up_signal_generated: 
+                    up_trend_count += 1
                     logging.info("We have a up-trend signal from {}".format(k))
                     # Check if the stock has a stored up-trend.  If so, then ignore. 
                     # The response comes in the form of a dictionary object.  If it has length of 1 then the symbol was not previously saved.
@@ -577,6 +595,7 @@ def main():
                             if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up') 
                             else: logging.warn("We were unable to save the new up-trend for {}".format(k)) # Should probably change this to the method call raising an exception and catch it here.
                 elif down_signal_generated: 
+                    down_trend_count += 1
                     logging.info("We have a down-trend signal from {}".format(k))
                     # When a down-trend occurs we check if the stock has a stored down-trend. 
                     # If so, we ignore, if not, then update the down-trend bit to true, update the up-trend bit to false, insert the date, then notify.
@@ -656,6 +675,12 @@ def main():
                     print("<li>{} is currently in a {} trend with CMF of {}</li>\n".format(x, notification_dict[j], round(j.get_chaikin_money_flow(), 2)), file=results_file)  
         
         print("</ul>", file=results_file)
+        
+        # Report on total trends for up and down.
+        print("<p>The total number of stocks in an upward trend is <b>{}</b><br>".format(str(up_trend_count)), file=results_file)
+        print("The total number of stocks in a downward trend is <b>{}</b></p>".format(str(down_trend_count)), file=results_file)
+        
+        
         # Then report on our heavy volume reversals.    
         print("<h4>The following stocks threw a heavy volume reversal signal:</h4>\n<ul>\n", file=results_file)
         
@@ -685,7 +710,9 @@ def main():
         
         for j in notification_dict.keys():
             if j.get_volume() >= 500000 and j.get_close() <= 20:
-                print("<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
+                s = "<li>You have a new {} trend for {} - CMF is {}</li>".format(notification_dict[j], j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
+                if notification_dict[j] == 'down': s = make_color(s, 'red')
+                print(s, file=results_file)
         
         print("</ul>", file=results_file)
         
@@ -693,14 +720,18 @@ def main():
                 
         for j in notification_dict.keys():
             if j.get_volume() >= 500000 and j.get_close() > 20:
-                print("<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file) 
+                s = "<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
+                if notification_dict[j] == 'down': s = make_color(s, 'red')
+                print(s, file=results_file) 
         
         print("</ul>", file=results_file)
         
         print("<h4>The following stocks have new trends, are trading under 500k shares per day, and are priced over $20:</h4>\n<ul>", file=results_file)
         for j in notification_dict.keys():
             if j.get_volume() < 500000 and j.get_close() > 20:
-                print("<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)    
+                s = "<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
+                if notification_dict[j] == 'down': s = make_color(s, 'red')
+                print(s, file=results_file)    
         
         print("</ul>", file=results_file)
         
