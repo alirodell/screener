@@ -94,6 +94,7 @@ class Security:
         # security_data_list is a list of dictionary objects containing historical prices for the security.
         self._data = security_data_list      
         self._10_day_sma = 0.0
+        self._50_day_sma = 0.0
         self._20_day_ema = 0.0
         self._30_day_ema = 0.0
         self._chaikin_money_flow = 0.0
@@ -127,6 +128,7 @@ class Security:
                
         # Calculate and assign the moving averages
         self._10_day_sma = self.calc_simple_moving_average(10, num_trd)
+        self._50_day_sma = self.calc_simple_moving_average(50, num_trd)
         self._20_day_ema = self.calc_exp_moving_average(20, num_trd)
         self._30_day_ema = self.calc_exp_moving_average(30, num_trd)
         
@@ -270,6 +272,9 @@ class Security:
     def get_10_day_sma(self):
         return self._10_day_sma
     
+    def get_50_day_sma(self):
+        return self._50_day_sma
+    
     def get_20_day_ema(self):
         return self._20_day_ema
     
@@ -352,7 +357,7 @@ def main():
         return s     
 
     def format_CMF(cmf = 0.0):
-        s = ''
+        s = '' 
         if cmf >= .1: s = "<b>" + str(round(cmf, 2)) + "</b>"
         elif cmf <= -.1: s = "<b>" + str(round(cmf, 2)) + "</b>"
         else: s = str(round(cmf, 2))
@@ -361,20 +366,12 @@ def main():
 
 
     def save_heavy_volume_reversal(symbol = ''):
-        return_code = 0
+        return_code = 1
         
         if(len(symbol) > 0):
             try:
-                # We don't touch the trend signals since they can also be set and are independent of this signal.
-                current_trend_table.put_item(
-                    Item={
-                          'stock_symbol': symbol,
-                          'heavy_volume_reversal': True,
-                          'trend_start_date': today_date_string 
-                    }
-                )
                 
-                # I believe that we save this every time it happens since it's an event, not a trend.
+                # We only save the history of signals, there is not "current" signal so we don't save to the Current_Trend table.
                 trend_history_table.put_item(
                     Item={
                           'stock_symbol': symbol,
@@ -383,13 +380,35 @@ def main():
                     }
                 )                
     
-                return_code = 1
-            except: logging.exception("Ran into an issue saving your heavy volume reversal signal.")
+                return_code = 0
+            except: 
+                return_code = 2
+                logging.exception("Ran into an issue saving your heavy volume reversal signal.")
         return return_code     
+    
+    def save_heavy_volume_upswing(symbol = ''):
+        return_code = 1
+        
+        if(len(symbol) > 0):
+            try:
+                # We only save the history of signals, there is not "current" signal so we don't save to the Current_Trend table.
+                trend_history_table.put_item(
+                    Item={
+                          'stock_symbol': symbol,
+                          'occurence_date': today_date_string,
+                          'trend_type': 'heavy volume up-swing'
+                    }
+                )                
+    
+                return_code = 0
+            except: 
+                return_code = 2
+                logging.exception("Ran into an issue saving your heavy volume up-swing signal.")
+        return return_code    
     
     
     def save_up_trend(symbol = '', new = False):
-        return_code = 0
+        return_code = 1
         
         if(len(symbol) > 0):
             try:
@@ -413,12 +432,14 @@ def main():
                     )                
                 
                 
-                return_code = 1
-            except: logging.exception("Ran into an issue saving your up trend.")
+                return_code = 0
+            except: 
+                return_code = 2
+                logging.exception("Ran into an issue saving your up trend.")
         return return_code 
  
     def save_down_trend(symbol = '', new = False):
-        return_code = 0
+        return_code = 1
         
         try:
             if(len(symbol) > 0):
@@ -440,8 +461,10 @@ def main():
                         }
                     ) 
                 
-                return_code = 1
-        except: logging.exception("Ran into an issue saving your down trend.")
+                return_code = 0
+        except: 
+            return_code = 2
+            logging.exception("Ran into an issue saving your down trend.")
         return return_code 
     
         
@@ -514,10 +537,14 @@ def main():
                 my_stock = Security(quote_list)
                 up_signal_generated = False
                 down_signal_generated = False
+                #fifty_day_breach_up = False
+                #fifty_day_breach_down = False
                 heavy_volume_reversal_signal = False
+                #heavy_volume_upswing_signal = False
                 
                 # set the values for trend determination.
                 ten_day_sma = my_stock.get_10_day_sma()
+                #fifty_day_sma = my_stock.get_50_day_sma()
                 twenty_day_ema = my_stock.get_20_day_ema()
                 thirty_day_ema = my_stock.get_30_day_ema()
                 # Haven't integrated the sorting on CMF into the criteria yet so we're just listing it in the results file.
@@ -529,11 +556,12 @@ def main():
                 # Check for down-trend
                 if ten_day_sma < twenty_day_ema or ten_day_sma < thirty_day_ema: down_signal_generated = True
                 
-                # Set the values for heavy volume reversal signals.
-                #    vol_percent_change = j.get_yesterday_volume() / j.get_volume()
-                #    close_percent_change = j.get_yesterday_close() / j.get_close()
-                #    
-                #    if j.get_volume() >= 250000 and j.get_close() <= 10 and j.get_close() >= 5 and close_percent_change < .5 and vol_percent_change > .25 and j.get_close() > j.get_yesterday_close() and j.get_volume() > j.get_yesterday_volume():
+                # Check for 50 day breach upwards
+                #if fifty_day_sma > my_stock.get_close(): fifty_day_breach_up = True
+                
+                # Check for 50 day breach downwards
+                #if fifty_day_sma < my_stock.get_close(): fifty_day_breach_down = True
+                
                 volume = my_stock.get_volume()
                 yesterday_volume = my_stock.get_yesterday_volume()
                                 
@@ -545,8 +573,11 @@ def main():
                     close_percent_change = yesterday_close / close_price
                     
                     # Check for heavy volume reversal signal.
-                    if volume >= 250000 and close_price <= 10 and close_price >= 5 and close_percent_change < .5 and vol_percent_change > .25 and close_price > yesterday_close and volume > yesterday_volume: heavy_volume_reversal_signal = True
+                    if volume >= 250000 and close_price <= 20 and close_price >= 5 and close_percent_change < .5 and vol_percent_change > .25 and close_price > yesterday_close and volume > yesterday_volume: heavy_volume_reversal_signal = True
                 
+                    # Check for general heavy volume up-swing with increasing price.
+                    if volume >= 250000 and close_price <= 20 and close_price >= 5 and vol_percent_change > .25 and close_price > yesterday_close and volume > yesterday_volume: heavy_volume_upswing_signal = True
+                    
                 # Depending on environment, open locally or to our PROD db.
                 # we default to local development.
                 if environment == "PROD": dynamodb = boto3.resource('dynamodb', region_name='us-east-1', endpoint_url="http://dynamodb.us-east-1.amazonaws.com")
@@ -563,8 +594,13 @@ def main():
                 # Process our trend signals.              
                 if heavy_volume_reversal_signal:
                     logging.info("We have a heavy volume reversal signal for {}".format(k))
-                    if save_heavy_volume_reversal(k) == 1: tally_notification(k, 'heavy volume reversal')
+                    if save_heavy_volume_reversal(k) == 0: tally_notification(my_stock, 'heavy volume reversal')
                     else: logging.warn("We were unable to save the heavy volume reversal trend for {}".format(k))
+                
+                #if heavy_volume_upswing_signal:
+                #    logging.info("We have a heavy volume up-swing signal for {}".format(k))
+                #    if save_heavy_volume_upswing(k) == 0: tally_notification(my_stock, 'heavy volume up-swing')
+                #    else: logging.warn("We were unable to save the heavy volume up-swing trend for {}".format(k))
                 
                 if up_signal_generated: 
                     up_trend_count += 1
@@ -577,7 +613,7 @@ def main():
                     if len(response) == 1:
                         # Save the trend to the db.
                         logging.info("Saving trend to the db")
-                        if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up')
+                        if save_up_trend(k, True) == 0: tally_notification(my_stock, 'up')
                         else: logging.warn("We were unable to save the up-trend for {}".format(k))
                         
                     elif len(response) > 1:
@@ -591,7 +627,7 @@ def main():
                             if k in securities_to_add: tally_notification(my_stock, 'existing-up')
                         elif response['Item']['up_trend'] == False:
                             # Updating trend in the database.
-                            if save_up_trend(k, True) == 1: tally_notification(my_stock, 'up') 
+                            if save_up_trend(k, True) == 0: tally_notification(my_stock, 'up') 
                             else: logging.warn("We were unable to save the new up-trend for {}".format(k)) # Should probably change this to the method call raising an exception and catch it here.
                 elif down_signal_generated: 
                     down_trend_count += 1
@@ -602,7 +638,7 @@ def main():
                     if len(response) == 1:
                         # Save the trend to the db as this is a either a new signal or a new stock.
                         logging.info("Saving new trend to the db")
-                        if save_down_trend(k, True) == 1: tally_notification(my_stock, 'down') 
+                        if save_down_trend(k, True) == 0: tally_notification(my_stock, 'down') 
                         else: logging.warn("We were unable to save the down-trend for {}".format(k))
                         
                     elif len(response) > 1:
@@ -615,7 +651,7 @@ def main():
                             if k in securities_to_add: tally_notification(my_stock, 'existing-down')
                         elif response['Item']['down_trend'] == False:
                             # Updating trend in the database.
-                            if save_down_trend(k, False) == 1: tally_notification(my_stock, 'down')
+                            if save_down_trend(k, False) == 0: tally_notification(my_stock, 'down')
                             else: logging.warn("We were unable to save the new down-trend for {}".format(k))        
                 else:
                     logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
@@ -679,6 +715,31 @@ def main():
         print("<p>The total number of stocks in an upward trend is <b>{}</b><br>".format(str(up_trend_count)), file=results_file)
         print("The total number of stocks in a downward trend is <b>{}</b></p>".format(str(down_trend_count)), file=results_file)
         
+        # Then report on our heavy volume reversals.    
+        #print("<h4>The following stocks threw a heavy volume up-swing signal:</h4>\n<ul>\n", file=results_file)
+        
+        #for j in notification_dict.keys():
+        #    print(notification_dict[j], j.get_symbol())
+        #    if notification_dict[j] == 'heavy volume up-swing':
+        #        
+        #        volume = j.get_volume()
+        #        close_price = j.get_close()
+        #        yesterday_volume = j.get_yesterday_volume()
+        #        yesterday_close = j.get_yesterday_close()
+        #        vol_percent_change = yesterday_volume / volume
+        #        close_percent_change = yesterday_close / close_price
+        #    
+        #        print("<li>You have a new {} signal for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), round(j.get_chaikin_money_flow(), 2)), file=results_file)
+        #        print("<li>Stats are as follows:\n", file=results_file)
+        #        print("<ul>", file=results_file)
+        #        print("<li>Volume: {}</li>\n".format(volume), file=results_file)
+        #        print("<li>Close: {}</li>\n".format(close_price), file=results_file)
+        #        print("<li>Yesterday's Volume: {}</li>\n".format(yesterday_volume), file=results_file)
+        #        print("<li>Yesterday's Close: {}</li>\n".format(yesterday_close), file=results_file)
+        #        print("<li>Volume Percent Change: {}</li>\n".format(vol_percent_change), file=results_file)
+        #        print("<li>Close Percent Change: {}</li>\n".format(close_percent_change), file=results_file)
+                
+        #print("</ul>", file=results_file)
         
         # Then report on our heavy volume reversals.    
         print("<h4>The following stocks threw a heavy volume reversal signal:</h4>\n<ul>\n", file=results_file)
@@ -702,23 +763,43 @@ def main():
                 print("<li>Yesterday's Close: {}</li>\n".format(yesterday_close), file=results_file)
                 print("<li>Volume Percent Change: {}</li>\n".format(vol_percent_change), file=results_file)
                 print("<li>Close Percent Change: {}</li>\n".format(close_percent_change), file=results_file)
-                print("</ul>", file=results_file)
-        
+         
         print("</ul>", file=results_file)
-        print("<h4>The following stocks have new trends, are trading over 500k shares per day, and are priced under $20:</h4>\n<ul>", file=results_file)
+        
+        # I haven't decided what to do with the 50 day moving average.  If I should log it or just display it on the chart.
+        
+        #print("<h4>The following stocks have breached their 50 day moving average in a bullish manner:</h4>\n<ul>", file=results_file)
+        
+        #for j in notification_dict.keys():
+        #    if j.get_close() > j.get_50_day_sma():
+        #        s = "<li>{} - CMF is {}</li>".format(j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
+        #        print(s, file=results_file)
+        #
+        #print("</ul>", file=results_file)
+        
+        #print("<h4>The following stocks have breached their 50 day moving average in a bearish manner:</h4>\n<ul>", file=results_file)
+        
+        #for j in notification_dict.keys():
+        #    if j.get_close() < j.get_50_day_sma():
+        #        s = "<li>{} - CMF is {}</li>".format(j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
+        #        print(s, file=results_file)
+        #
+        #print("</ul>", file=results_file)
+        
+        print("<h4>The following stocks have new trends, are trading over 500k shares per day, are priced over $5, and are priced under $30:</h4>\n<ul>", file=results_file)
         
         for j in notification_dict.keys():
-            if j.get_volume() >= 500000 and j.get_close() <= 20:
+            if j.get_volume() >= 500000 and j.get_close() >=5 and j.get_close() <= 30:
                 s = "<li>You have a new {} trend for {} - CMF is {}</li>".format(notification_dict[j], j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
                 if notification_dict[j] == 'down': s = make_color(s, 'red')
                 print(s, file=results_file)
         
         print("</ul>", file=results_file)
         
-        print("<h4>The following stocks have new trends, are trading over 500k shares per day, but are priced over $20:</h4>\n<ul>\n", file=results_file)  
+        print("<h4>The following stocks have new trends, are trading over 500k shares per day, but are priced over $30:</h4>\n<ul>\n", file=results_file)  
                 
         for j in notification_dict.keys():
-            if j.get_volume() >= 500000 and j.get_close() > 20:
+            if j.get_volume() >= 500000 and j.get_close() > 30:
                 s = "<li>You have a new {} trend for {} - CMF is {}</li>\n".format(notification_dict[j], j.get_symbol(), format_CMF(j.get_chaikin_money_flow()))
                 if notification_dict[j] == 'down': s = make_color(s, 'red')
                 print(s, file=results_file) 
