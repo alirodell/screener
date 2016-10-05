@@ -319,6 +319,7 @@ def main():
     # For the purposes of development I am having the end_date be yesterday so that I can run this during the day.  Usually this will run at night so we can get the close prices.
     # Since we are running this at night on AWS and their system clocks are at UTC we can also subtract a day from those times.  That works for both scenarios.
     end_date = datetime.date.today() - datetime.timedelta(days=1)
+    
     # Go back 300 calendar days which should give us around 204 trading days.
     # We do this because our EMA needs the previous EMA to calculate.  Instead we use the SMA so we're going back relatively far to smooth out any differences.
     start_date = end_date - datetime.timedelta(days=300)
@@ -839,7 +840,6 @@ def main():
     
     logging.info("All Done at {}.".format(datetime.datetime.today()))
 
-    
     
 
 
