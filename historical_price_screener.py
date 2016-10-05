@@ -679,7 +679,7 @@ def main():
         # Yahoo has a limit of 2000 requests per hour. If we are going to run through the entire stock list then we should wait a few seconds between each so that we don't run up against it.
         if environment == 'PROD': 
             logging.info("Waiting for 2 seconds in between requests to Yahoo to let them rest...")
-            time.sleep(2)
+            time.sleep(5)
     
     
     # Now we write out our results sorted on volume and price ranges. 
