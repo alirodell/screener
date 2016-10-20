@@ -524,6 +524,7 @@ def main():
                 # I should raise a custom exception for this.
                 logging.warn("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
                 logging.warn("The specific query string that you received an error for was: {}".format(specific_query))
+            else: logging.info("The query that worked was: {}".format(specific_query))
                         
             bulk_response = hist_resp.json()['query']
             
@@ -678,7 +679,7 @@ def main():
         
         # Yahoo has a limit of 2000 requests per hour. If we are going to run through the entire stock list then we should wait a few seconds between each so that we don't run up against it.
         if environment == 'PROD': 
-            logging.info("Waiting for 2 seconds in between requests to Yahoo to let them rest...")
+            logging.info("Waiting for 5 seconds in between requests to Yahoo to let them rest...")
             time.sleep(5)
     
     
