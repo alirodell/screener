@@ -508,7 +508,7 @@ def main():
     # Now loop through the stocks and do your work.
     for k in the_stocks:
         
-        logging.info("-----------------Starting work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
+        logging.debug("-----------------Starting work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
         # Generate the YQL string.
         specific_query = historical_data_url.replace("###",k)
         
@@ -524,7 +524,7 @@ def main():
                 # I should raise a custom exception for this.
                 logging.warn("You didn't receive a 200 code from Yahoo, you received a {}.".format(hist_resp.status_code))
                 logging.warn("The specific query string that you received an error for was: {}".format(specific_query))
-            else: logging.info("The query that worked was: {}".format(specific_query))
+            else: logging.debug("The query that worked was: {}".format(specific_query))
                         
             bulk_response = hist_resp.json()['query']
             
@@ -595,7 +595,7 @@ def main():
                 
                 # Process our trend signals.              
                 if heavy_volume_reversal_signal:
-                    logging.info("We have a heavy volume reversal signal for {}".format(k))
+                    logging.debug("We have a heavy volume reversal signal for {}".format(k))
                     if save_heavy_volume_reversal(k) == 0: tally_notification(my_stock, 'heavy volume reversal')
                     else: logging.warn("We were unable to save the heavy volume reversal trend for {}".format(k))
                 
@@ -606,7 +606,7 @@ def main():
                 
                 if up_signal_generated: 
                     up_trend_count += 1
-                    logging.info("We have a up-trend signal from {}".format(k))
+                    logging.debug("We have a up-trend signal from {}".format(k))
                     # Check if the stock has a stored up-trend.  If so, then ignore. 
                     # The response comes in the form of a dictionary object.  If it has length of 1 then the symbol was not previously saved.
                     # If it has more than one, then you are getting a response from the database and there is a current trend saved.
@@ -624,7 +624,7 @@ def main():
                         # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
                         #trend_info = 
                         if response['Item']['up_trend'] == True: 
-                            logging.info("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
+                            logging.debug("We already know about the up-trend for {}".format(k)) # We are literally passing here, we already know about the up-trend.
                             # If it is an index, we still notify, right at the top but we set the trend to "existing" in the notification_dict.  We leave the trend valid in the db, this is just for notification purposes.
                             if k in securities_to_add: tally_notification(my_stock, 'existing-up')
                         elif response['Item']['up_trend'] == False:
@@ -633,13 +633,13 @@ def main():
                             else: logging.warn("We were unable to save the new up-trend for {}".format(k)) # Should probably change this to the method call raising an exception and catch it here.
                 elif down_signal_generated: 
                     down_trend_count += 1
-                    logging.info("We have a down-trend signal from {}".format(k))
+                    logging.debug("We have a down-trend signal from {}".format(k))
                     # When a down-trend occurs we check if the stock has a stored down-trend. 
                     # If so, we ignore, if not, then update the down-trend bit to true, update the up-trend bit to false, insert the date, then notify.
                     response = current_trend_table.get_item(Key={'stock_symbol': k})
                     if len(response) == 1:
                         # Save the trend to the db as this is a either a new signal or a new stock.
-                        logging.info("Saving new trend to the db")
+                        logging.debug("Saving new trend to the db")
                         if save_down_trend(k, True) == 0: tally_notification(my_stock, 'down') 
                         else: logging.warn("We were unable to save the down-trend for {}".format(k))
                         
@@ -648,7 +648,7 @@ def main():
                         # If it isn't, then update the entry to indicate down_trend = True, and up-trend = False.
                         # 'Item': {'trend_start_date': '2016-07-06', 'up-trend': False, 'stock_symbol': 'AMD', 'down-trend': True}}
                         if response['Item']['down_trend'] == True: 
-                            logging.info("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
+                            logging.debug("We already know about the down-trend for {}".format(k)) # We are literally passing here, we already know about the down-trend.
                             # If it is an index, we still notify, right at the top but we set the trend to "existing" in the notification_dict.  We leave the trend valid in the db, this is just for notification purposes.
                             if k in securities_to_add: tally_notification(my_stock, 'existing-down')
                         elif response['Item']['down_trend'] == False:
@@ -656,13 +656,13 @@ def main():
                             if save_down_trend(k, False) == 0: tally_notification(my_stock, 'down')
                             else: logging.warn("We were unable to save the new down-trend for {}".format(k))        
                 else:
-                    logging.info("No trend detected for {} which means the SMA and EMA are equal".format(k))
+                    logging.debug("No trend detected for {} which means the SMA and EMA are equal".format(k))
                 
                 
-                logging.info("Current 10 day SMA is {}, current 20 day EMA is {}, and current 30 day EMA is {}".format(round(my_stock.get_10_day_sma(), 2), round(my_stock.get_20_day_ema(), 2),round(my_stock.get_30_day_ema(), 2)))
+                logging.debug("Current 10 day SMA is {}, current 20 day EMA is {}, and current 30 day EMA is {}".format(round(my_stock.get_10_day_sma(), 2), round(my_stock.get_20_day_ema(), 2),round(my_stock.get_30_day_ema(), 2)))
                 
                
-            else: logging.info("This stock has not been traded long enough to do analysis on it.")
+            else: logging.debug("This stock has not been traded long enough to do analysis on it.")
         except TypeError as te: 
             error_counter['Type Error'] += 1
             logging.warn("Came back with a TypeError from Yahoo Finance. We have {} of this type error. The error was: {}".format(str(error_counter['Type Error']), te))    # This is the error that is thrown if the query to Yahoo comes back with nothing.  Sometimes it happens with a bad stock symbol.
@@ -675,11 +675,11 @@ def main():
         except: 
             error_counter['Other Error'] += 1
             logging.exception("Had an issue processing {}. The current uncategorized error count is {}".format(k, str(error_counter['Other Error']))) # We keep going since sometimes Yahoo craps out on us. MIGHT WANT TO ADD AN ERROR COUNTER AND EXIT THE SCRIPT IF WE HIT A THRESHOLD.
-        logging.info("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
+        logging.debug("-----------------End work on stock symbol {} at {}.------------------------".format(k, datetime.datetime.today()))
         
         # Yahoo has a limit of 2000 requests per hour. If we are going to run through the entire stock list then we should wait a few seconds between each so that we don't run up against it.
         if environment == 'PROD': 
-            logging.info("Waiting for 5 seconds in between requests to Yahoo to let them rest...")
+            logging.debug("Waiting for 5 seconds in between requests to Yahoo to let them rest...")
             time.sleep(5)
     
     
