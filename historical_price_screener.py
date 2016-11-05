@@ -818,8 +818,7 @@ def main():
         print("</ul>", file=results_file)
         
     else: print("<h4>You have no new trends or signals today</h4>", file=results_file)
-    print("</body>\n</html>", file=results_file)
-    results_file.close()
+
    
     
     # If we're in PROD then copy the results file to S3.
@@ -837,11 +836,17 @@ def main():
     else: logging.info("Not saving results file to S3 since we're in DEV.")
     
     # Log the error counts. 
-    for x in error_counter.keys(): logging.info("We had {} instances of error type {}".format(error_counter[x],x))
+    print("<h4>Following are the error counts from this batch run:</h4>\n<ul>", file=results_file)
+    for x in error_counter.keys(): 
+        logging.info("We had {} instances of error type {}".format(error_counter[x],x))
+        s = "<li>We had {} instances of error type {}</li>".format(error_counter[x],x)
+        print(s, file=results_file)
+    print("</ul>", file=results_file)
+    print("</body>\n</html>", file=results_file)
     
     logging.info("All Done at {}.".format(datetime.datetime.today()))
-
-    
+       
+    results_file.close()
 
 
 
